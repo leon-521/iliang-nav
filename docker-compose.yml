@@ -1,0 +1,24 @@
+services:
+  nav:
+    # 生产：镜像在本机构建后 docker save/load 过来，不在 1.6G 小机器上编译
+    image: iliang-nav-nav:latest
+    build: .
+    container_name: iliang-nav
+    restart: unless-stopped
+    ports:
+      # 只监听本机，由 1Panel 的 OpenResty 反代进来
+      - "127.0.0.1:3000:3000"
+    env_file: .env
+    environment:
+      # 必须绝对路径：standalone 下 server.js 会把 cwd 切到 .next/standalone
+      DATABASE_PATH: /app/data/app.db
+      # 图标也放数据目录，由 app/icons/[name]/route.ts 动态读盘
+      ICON_DIR: /app/data/icons
+      # 单独存放加密的 AI 供应商配置，重建容器时保留，不包含在站内数据库备份中。
+      ILIANG_AI_SETTINGS_PATH: /app/data/ai/provider.json
+      WEBDAV_SETTINGS_DIR: /app/data/webdav-settings
+    volumes:
+      - ./data:/app/data
+      # 图标放在 data 目录下，由 app/icons/[name]/route.ts 动态读盘。
+      # 不要再挂到 /app/public —— standalone 启动时对 public/ 做快照，
+      # 之后新写入的图标静态服务看不见，会一直 404。

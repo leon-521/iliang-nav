@@ -1,0 +1,17 @@
+.git
+node_modules
+.next
+data
+backups
+.env*
+!.env.example
+.npmrc
+*.key
+*.pem
+*.log
+**/*.db*
+**/*.sqlite*
+**/*.mcp*
+coverage
+test-results
+playwright-report

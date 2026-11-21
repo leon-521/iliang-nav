@@ -1,0 +1,437 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Concept 01: mist white and slate indigo, shared by public and admin pages. */
+:root {
+  --radius: 0.875rem;
+  --background: #f6f8fc;
+  --foreground: #202a3d;
+  --card: #ffffff;
+  --card-foreground: #202a3d;
+  --popover: #ffffff;
+  --popover-foreground: #202a3d;
+  --primary: #465ba8;
+  --primary-foreground: #ffffff;
+  --secondary: #eaf0f7;
+  --secondary-foreground: #4b586d;
+  --muted: #eaf0f7;
+  --muted-foreground: #5e6b7e;
+  --accent: #465ba8;
+  --accent-foreground: #ffffff;
+  --indigo-soft: #e5eafa;
+  --indigo-ink: #3f519c;
+  --warm-ink: #946122;
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: #d8dfeb;
+  --input: #c8d1e2;
+  --ring: #465ba8;
+  --sidebar: #edf1f8;
+  --sidebar-foreground: #202a3d;
+  --sidebar-primary: #465ba8;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #e5eafa;
+  --sidebar-accent-foreground: #3f519c;
+  --sidebar-border: #d8dfeb;
+  --sidebar-ring: #465ba8;
+}
+
+.dark {
+  --background: #131a28;
+  --foreground: #e9edf7;
+  --card: #1b2435;
+  --card-foreground: #e9edf7;
+  --popover: #222c3f;
+  --popover-foreground: #e9edf7;
+  --primary: #acbcff;
+  --primary-foreground: #1a254d;
+  --secondary: #252f43;
+  --secondary-foreground: #dce4f4;
+  --muted: #252f43;
+  --muted-foreground: #a9b6cb;
+  --accent: #acbcff;
+  --accent-foreground: #1a254d;
+  --indigo-soft: #28355b;
+  --indigo-ink: #c1ccff;
+  --warm-ink: #e7b879;
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: #334057;
+  --input: #465474;
+  --ring: #acbcff;
+  --sidebar: #171f30;
+  --sidebar-foreground: #e9edf7;
+  --sidebar-primary: #acbcff;
+  --sidebar-primary-foreground: #1a254d;
+  --sidebar-accent: #28355b;
+  --sidebar-accent-foreground: #c1ccff;
+  --sidebar-border: #334057;
+  --sidebar-ring: #acbcff;
+}
+
+/* A palette changes the page tint and accent without changing appearance mode. */
+:root[data-palette="teal"] {
+  --background: #f3f8f6;
+  --primary: #216b60;
+  --indigo-soft: #deeee8;
+  --indigo-ink: #205b53;
+  --sidebar: #e9f2ef;
+}
+:root.dark[data-palette="teal"] {
+  --background: #121f20;
+  --primary: #8bd8c7;
+  --primary-foreground: #143a33;
+  --indigo-soft: #223d38;
+  --indigo-ink: #a2e4d5;
+  --sidebar: #192827;
+}
+:root[data-palette="rose"] {
+  --background: #fbf5f7;
+  --primary: #984468;
+  --indigo-soft: #f7e4ec;
+  --indigo-ink: #793451;
+  --sidebar: #f5ebf0;
+}
+:root.dark[data-palette="rose"] {
+  --background: #241922;
+  --primary: #f1acce;
+  --primary-foreground: #492136;
+  --indigo-soft: #48293a;
+  --indigo-ink: #f8c3da;
+  --sidebar: #2e212c;
+}
+:root[data-palette="amber"] {
+  --background: #fbf7ef;
+  --primary: #88521f;
+  --indigo-soft: #f3e7d3;
+  --indigo-ink: #744519;
+  --sidebar: #f4eddf;
+}
+:root.dark[data-palette="amber"] {
+  --background: #211b16;
+  --primary: #f1c58b;
+  --primary-foreground: #462a15;
+  --indigo-soft: #453525;
+  --indigo-ink: #f5d2a2;
+  --sidebar: #2c241c;
+}
+:root[data-palette="violet"] {
+  --background: #f8f5fc;
+  --primary: #6947a3;
+  --indigo-soft: #eee5fa;
+  --indigo-ink: #573783;
+  --sidebar: #f0eaf7;
+}
+:root.dark[data-palette="violet"] {
+  --background: #1c1729;
+  --primary: #d6b9ff;
+  --primary-foreground: #372555;
+  --indigo-soft: #37294f;
+  --indigo-ink: #e6d0ff;
+  --sidebar: #251e35;
+}
+:root[data-palette]:not([data-palette="indigo"]) {
+  --accent: var(--primary);
+  --accent-foreground: var(--primary-foreground);
+  --ring: var(--primary);
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--indigo-soft);
+  --sidebar-accent-foreground: var(--indigo-ink);
+  --sidebar-ring: var(--primary);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui,
+    "PingFang SC", "Hiragino Sans GB", "Source Han Sans SC",
+    "Noto Sans CJK SC", "Microsoft YaHei", sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, "SF Mono", Menlo,
+    Consolas, monospace;
+  --font-display: var(--font-display), Georgia, "Songti SC", serif;
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-indigo-soft: var(--indigo-soft);
+  --color-indigo-ink: var(--indigo-ink);
+  --color-warm-ink: var(--warm-ink);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "ss01", "cv11";
+  }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+
+  /* 移动端避免输入框聚焦缩放 */
+  @media screen and (max-width: 767px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px;
+    }
+  }
+
+  ::selection {
+    background-color: color-mix(in oklch, var(--accent) 22%, transparent);
+  }
+}
+
+@utility no-scrollbar {
+  &::-webkit-scrollbar {
+    display: none;
+  }
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* 前台顶部极淡的靛蓝光，避免纯平背景显得死板 */
+@utility paper-wash {
+  background-image:
+    radial-gradient(
+      60rem 22rem at 12% -8%,
+      color-mix(in oklch, var(--accent) 6%, transparent),
+      transparent 60%
+    ),
+    radial-gradient(
+      40rem 18rem at 92% -12%,
+      color-mix(in oklch, var(--foreground) 3%, transparent),
+      transparent 65%
+    );
+}
+
+/* ============================================================
+   动效
+
+   原则：只动 opacity / transform（合成层，不触发重排），
+   时长 150–400ms，缓动统一 ease-out。
+   全部挂在 prefers-reduced-motion 之外 —— 系统开了「减少动态效果」就一律不动，
+   这是可访问性要求，不是可选项。
+   ============================================================ */
+
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* 手风琴展开/收起。高度用 Radix 提供的 --radix-accordion-content-height，
+   比自己猜一个固定高度靠谱 —— 内容长短不一，写死就会跳动。 */
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+/* 卡片入场：配合 style 里的 animation-delay 做错峰 */
+@utility animate-fade-up {
+  animation: fade-up 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-fade-in {
+  animation: fade-in 0.3s ease-out both;
+}
+
+@utility animate-scale-in {
+  animation: scale-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-slide-in-left {
+  animation: slide-in-left 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@utility animate-accordion-down {
+  animation: accordion-down 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@utility animate-accordion-up {
+  animation: accordion-up 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* 卡片悬停：轻微上浮 + 主色描边，克制到不抢注意力 */
+@utility card-hover {
+  transition:
+    transform 0.22s cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 0.22s ease-out,
+    border-color 0.22s ease-out;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px -4px color-mix(in oklab, var(--foreground) 12%, transparent);
+    border-color: color-mix(in oklab, var(--accent) 35%, var(--border));
+  }
+}
+
+/* 图标块：悬停时轻微放大，暗示可点 */
+@utility icon-pop {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  &:hover {
+    transform: scale(1.06);
+  }
+}
+
+/* ============================================================
+   视口高度
+
+   100vh 在手机上是「地址栏收起时」的高度，实际可见区域更矮，
+   于是居中的内容看起来整体偏下 —— 这是「弹窗/登录页没居中」
+   最常见的原因。100dvh 跟随可见视口，老浏览器退回 100vh。
+   ============================================================ */
+/* 用 @supports 包 dvh：直接写两行声明会被 Lightning CSS 优化掉 100vh
+   那一行（它按编译目标认为 dvh 总是可用），老浏览器就彻底没有高度了。 */
+@utility min-h-viewport {
+  min-height: 100vh;
+
+  @supports (height: 100dvh) {
+    min-height: 100dvh;
+  }
+}
+
+/* 弹窗最大高度：留出 2rem 呼吸，超出时弹窗内部滚动 */
+@utility max-h-viewport {
+  max-height: calc(100vh - 2rem);
+
+  @supports (height: 100dvh) {
+    max-height: calc(100dvh - 2rem);
+  }
+}
+
+/* 系统要求减少动效时，全部退回静止 */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-fade-in,
+  .animate-scale-in,
+  .animate-slide-in-left,
+  .animate-accordion-down,
+  .animate-accordion-up {
+    animation: none !important;
+  }
+
+  .card-hover:hover,
+  .icon-pop:hover {
+    transform: none !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Radix keeps the drawer mounted until the closing animation finishes. */
+@keyframes mobile-nav-present {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+@keyframes mobile-nav-dismiss {
+  to { transform: translateX(-100%); }
+}
+@keyframes mobile-nav-overlay-dismiss {
+  to { opacity: 0; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .mobile-nav-drawer[data-state="open"] { animation: mobile-nav-present 280ms cubic-bezier(.2,.8,.2,1) both; }
+  .mobile-nav-drawer[data-state="closed"] { animation: mobile-nav-dismiss 190ms ease-in both; }
+  .mobile-nav-overlay[data-state="open"] { animation: fade-in 240ms ease-out both; }
+  .mobile-nav-overlay[data-state="closed"] { animation: mobile-nav-overlay-dismiss 190ms ease-in both; }
+}
