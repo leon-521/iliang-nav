@@ -1,3 +1,6 @@
+export const PROJECT_REPOSITORY = "leon-521/iliang-nav";
+export const PROJECT_GITHUB_URL = `https://github.com/${PROJECT_REPOSITORY}`;
+
 /** Compare numeric release versions. Other tag formats cannot prove update status. */
 function stableVersion(value: string) {
   return /^v?(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})\.(0|[1-9]\d{0,8})(?:\+[\w.-]+)?$/i.exec(value.trim())?.slice(1, 4).map(Number);

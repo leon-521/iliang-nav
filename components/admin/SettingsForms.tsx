@@ -122,6 +122,12 @@ export function SettingsForm({
       </div>
 
       <div className="space-y-2">
+        <Label htmlFor="footerText">页脚文字</Label>
+        <Input id="footerText" name="footerText" defaultValue={initial.footerText} maxLength={160} placeholder="留空使用默认版权文字" />
+        <p className="text-xs text-muted-foreground">显示在前台底部，最多 160 字。</p>
+      </div>
+
+      <div className="space-y-2">
         <Label htmlFor="ownerName">称呼</Label>
         <Input
           id="ownerName"

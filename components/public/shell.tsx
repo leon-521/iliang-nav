@@ -72,17 +72,17 @@ export function PublicShell({
             baseUrl={process.env.PUBLIC_BASE_URL}
           />
 
-          {/* pb 给移动端底部 Tab 栏留位，否则最后一行会被挡住 */}
-          <main className={`flex-1 pb-24 pt-6 lg:pb-10 lg:pt-7 ${wide ? "mx-auto w-full min-w-0 px-4 sm:px-6 xl:w-[96%]" : "px-4 sm:px-6 lg:px-9"}`}>
+          {/* 移动底栏留白由页脚负责。 */}
+          <main className={`flex-1 pb-6 pt-6 lg:pb-10 lg:pt-7 ${wide ? "mx-auto w-full min-w-0 px-4 sm:px-6 xl:w-[96%]" : "px-4 sm:px-6 lg:px-9"}`}>
             <div className={wide ? "w-full" : "mx-auto w-full max-w-[1320px]"}>{children}</div>
           </main>
 
-          <footer className="hidden border-t border-border px-9 py-4 lg:block">
-            <div className="mx-auto w-full max-w-[1320px] text-sm text-muted-foreground">
-              <span>
-                © {new Date().getFullYear()} {settings.siteName} · 个人书签工作台
-              </span>
+          <footer className="border-t border-border py-4 pb-24 lg:pb-4">
+            <div className={`${wide ? "mx-auto w-full min-w-0 px-4 sm:px-6 xl:w-[96%]" : "px-4 sm:px-6 lg:px-9"} text-sm text-muted-foreground`}>
+              <div className={wide ? "w-full break-words" : "mx-auto w-full max-w-[1320px] break-words"}>
+                {settings.footerText || `© ${new Date().getFullYear()} ${settings.siteName} · 个人书签工作台`}
               </div>
+            </div>
           </footer>
         </div>
       </div>

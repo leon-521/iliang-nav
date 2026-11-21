@@ -4,10 +4,10 @@ import { ArrowUpRight, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { version } from "@/package.json";
-import { compareReleaseVersions, parseRepositoryVersion } from "@/lib/project-version";
+import { compareReleaseVersions, parseRepositoryVersion, PROJECT_GITHUB_URL, PROJECT_REPOSITORY } from "@/lib/project-version";
 
-const repository = "leon-521/iliang-nav";
-const repositoryUrl = `https://github.com/${repository}`;
+const repository = PROJECT_REPOSITORY;
+const repositoryUrl = PROJECT_GITHUB_URL;
 type Release = { tag: string } | { error: string };
 let cached: { expires: number; result: Promise<Release> } | undefined;
 

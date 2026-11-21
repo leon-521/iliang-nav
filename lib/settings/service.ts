@@ -5,6 +5,7 @@ import { settings } from "@/lib/db/schema";
 export type SiteSettings = {
   siteName: string;
   siteTagline: string;
+  footerText: string;
   /** 首页问候语里的称呼，如「设计师」「林同学」 */
   ownerName: string;
   showIcons: boolean;
@@ -24,6 +25,7 @@ export type SiteSettings = {
 const DEFAULTS: SiteSettings = {
   siteName: "iliang nav",
   siteTagline: "我的书签导航",
+  footerText: "",
   ownerName: "",
   showIcons: true,
   quickToolIds: [],
@@ -36,6 +38,7 @@ const DEFAULTS: SiteSettings = {
 const KEYS = [
   "site_name",
   "site_tagline",
+  "footer_text",
   "owner_name",
   "show_icons",
   "quick_tool_ids",
@@ -58,6 +61,7 @@ export function getSettings(): SiteSettings {
   return {
     siteName: map.get("site_name") ?? DEFAULTS.siteName,
     siteTagline: map.get("site_tagline") ?? DEFAULTS.siteTagline,
+    footerText: map.get("footer_text") ?? DEFAULTS.footerText,
     ownerName: map.get("owner_name") ?? DEFAULTS.ownerName,
     showIcons: (map.get("show_icons") ?? "1") === "1",
     quickToolIds,

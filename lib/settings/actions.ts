@@ -27,6 +27,8 @@ export async function saveSettings(
 
   const siteName = String(formData.get("siteName") ?? "").trim();
   const siteTagline = String(formData.get("siteTagline") ?? "").trim();
+  const footerText = formData.get("footerText");
+  const footer = typeof footerText === "string" ? footerText.trim() : undefined;
   const ownerName = String(formData.get("ownerName") ?? "").trim();
   const showIcons = formData.get("showIcons") === "on";
   const quickToolIds = String(formData.get("quickToolIds") ?? "")
@@ -37,11 +39,13 @@ export async function saveSettings(
   if (!siteName) return { error: "站点名称不能为空" };
   if (siteName.length > 40) return { error: "站点名称最多 40 字" };
   if (siteTagline.length > 80) return { error: "副标题最多 80 字" };
+  if (footer && footer.length > 160) return { error: "页脚文字最多 160 字" };
   if (ownerName.length > 20) return { error: "称呼最多 20 字" };
   if (quickToolIds.length > 12) return { error: "常用工具最多 12 个" };
 
   setSetting("site_name", siteName);
   setSetting("site_tagline", siteTagline);
+  if (footer !== undefined) setSetting("footer_text", footer);
   setSetting("owner_name", ownerName);
   setSetting("show_icons", showIcons ? "1" : "0");
   const existing = getSettings();
