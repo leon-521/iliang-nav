@@ -13,3 +13,12 @@ export function compareReleaseVersions(current: string, remote: string) {
   }
   return "latest";
 }
+
+/** VERSION.md declares exactly one stable version on its own line. */
+export function parseRepositoryVersion(markdown: string): string | null {
+  if (markdown.length > 65_536) return null;
+  const declarations = [...markdown.matchAll(/^ver[ \t]*[:：][ \t]*(.+?)[ \t]*\r?$/gim)];
+  if (declarations.length !== 1) return null;
+  const value = declarations[0][1].trim();
+  return stableVersion(value) ? value.replace(/^v/i, "") : null;
+}

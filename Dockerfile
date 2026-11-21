@@ -26,6 +26,7 @@ ENV NODE_ENV=production \
     DATABASE_PATH=/app/data/app.db
 RUN apk add --no-cache vips
 COPY --from=builder /app/.next/standalone ./
+COPY --from=deps /app/node_modules/@node-rs ./node_modules/@node-rs
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/drizzle ./drizzle
 COPY --from=builder /app/scripts ./scripts

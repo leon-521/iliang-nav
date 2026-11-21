@@ -34,10 +34,37 @@ npm run dev -- --hostname 127.0.0.1
 
 按提示创建管理员（新密码为 6–12 个字符）。访问 [首页](http://localhost:3000/) 或 [后台](http://localhost:3000/dashboard)。项目未提供默认账号。SQLite 默认存放在 `data/`，不要提交运行数据。
 
+## Docker Compose 部署
+
+需要 Docker Engine（或 Docker Desktop）及 Compose v2。以下命令在项目目录执行。
+
+1. 克隆仓库：`git clone https://github.com/leon-521/iliang-nav.git`，然后 `cd iliang-nav`。
+2. 复制环境模板：`cp .env.example .env`（PowerShell：`Copy-Item .env.example .env`）。用 `openssl rand -hex 32` 生成随机值并填入 `AUTH_SECRET`。本机试用保留 `PUBLIC_BASE_URL=http://localhost:3000`；公网部署填写你的 HTTPS 域名。不要提交 `.env`。
+3. 构建并启动，容器会自动迁移数据库：
+
+   ```bash
+   docker compose up -d --build
+   docker compose logs -f nav
+   ```
+
+   服务就绪后可用 Ctrl+C 退出日志，不会停止容器。
+4. 创建管理员（首次启动才需要；再次运行会更新账号并使旧会话失效）：
+
+   ```bash
+   docker compose exec nav node scripts/create-admin.mts
+   ```
+
+5. 打开 [本机首页](http://localhost:3000/) 或 [后台](http://localhost:3000/dashboard)。默认端口只绑定宿主机回环地址。若对外提供服务，请通过 HTTPS 反向代理转发到本机 3000 端口。
+
+**更新与停机**：先备份 `./data/` 并安全保存 `.env`；运行 `git pull --ff-only`、`docker compose up -d --build` 更新。`docker compose down` 停止服务，不删除 `./data/` 中的数据。请勿手动删除该目录。
+
+## 版本检查
+
+后台「概览 → 项目信息」从 GitHub [VERSION.md](VERSION.md) 读取仓库版本，与当前安装版本比较。仓库版本更高时显示「有新版本可用」；检查结果短暂缓存，查询失败显示「无法确认」，不会自动升级。
+
 ## 部署与安全
 
 - 生产环境用 HTTPS，设置 `PUBLIC_BASE_URL` 为自己的公开地址；容器使用独立数据卷，避免服务重建后丢失数据库。
-- Docker Compose 会构建镜像并绑定本机 3000 端口；部署到公网请配反向代理。创建管理员可在宿主机装好依赖后，针对同一个挂载目录执行上面的管理员脚本。若用自定义数据库路径，确保脚本与服务指向同一个库。
 - AI、MCP、WebDAV 由管理员在设置中配置。确认 AI 请求会向配置的供应商发送说明中列出的数据；WebDAV 快照可能包含私有书签，远端文件未另行加密。只使用可信服务。
 - 升级前备份数据库、必要的图标与独立配置文件；SQLite 快照不包含外置图标和独立凭据文件。保持加密配置使用的密钥稳定，勿公开 `.env`、Token、数据库或备份。
 - 运行 `npm run build` 检查生产构建。端到端测试使用 `npm test`，需要先构建、安装 Playwright Chromium，并在支持 Bash 的环境中运行。
