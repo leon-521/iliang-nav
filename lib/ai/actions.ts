@@ -12,7 +12,7 @@ import { checkUrl, type CheckResult } from "@/lib/links/check";
 import { BlockedHostError } from "@/lib/net/guard";
 import { linkTransport, providerEndpoint, withinDeadline } from "./network";
 import { complete, parseSuggestion, ProviderError, providerSchema } from "./provider";
-import { mergeSuggestedTags, suggestFromPage } from "./enrichment";
+import { mergeSuggestedTags, suggestFromPage, type EvidenceSource, type EvidenceStrength } from "./enrichment";
 import { readProvider, removeProvider, saveProvider } from "./settings";
 
 export async function loadAiSettings() {
@@ -101,14 +101,21 @@ function listAiCategories() {
 
 const QuickAddMode = z.enum(["details", "category", "tags", "all"]);
 export type AiQuickAddMode = z.infer<typeof QuickAddMode>;
+const SuppliedEvidence = z.object({
+  title: z.string().max(300).optional(),
+  description: z.string().max(500).optional(),
+  text: z.string().max(8000).optional(),
+}).strict();
 
 /** Produces an editable draft, never a bookmark mutation. */
-export async function previewAiQuickAdd(rawUrl: unknown, confirmed: boolean, mode: AiQuickAddMode = "all"): Promise<{ ok: true; draft: PreviewValues } | { ok: false; error: string }> {
+export async function previewAiQuickAdd(rawUrl: unknown, confirmed: boolean, mode: AiQuickAddMode = "all", evidence?: unknown): Promise<{ ok: true; draft: PreviewValues; source: EvidenceSource; strength: EvidenceStrength } | { ok: false; error: string }> {
   const admin = await requireAdmin();
   const url = z.string().trim().min(1).max(2048).safeParse(rawUrl);
   const fields = QuickAddMode.safeParse(mode);
   if (confirmed !== true || !url.success) return { ok: false, error: "请填写网址，并确认允许发送网页节选。" };
   if (!fields.success) return { ok: false, error: "请选择有效的 AI 操作。" };
+  const supplied = SuppliedEvidence.optional().safeParse(evidence);
+  if (!supplied.success) return { ok: false, error: "提供的页面内容格式或长度不符合要求。" };
   if (busy.has(admin.userId)) return { ok: false, error: "已有请求运行中，请稍候。" };
   busy.add(admin.userId);
   try {
@@ -116,8 +123,8 @@ export async function previewAiQuickAdd(rawUrl: unknown, confirmed: boolean, mod
     if (!provider) throw new ProviderError("请先在设置中配置 AI 供应商。");
     const choices = fields.data === "category" || fields.data === "all" ? listAiCategories() : [];
     if (fields.data === "category" && !choices.length) throw new ProviderError("还没有分类，请先创建分类。");
-    const result = await suggestFromPage(provider, url.data, choices, { fields: fields.data });
-    return { ok: true, draft: result };
+    const { source, strength, ...draft } = await suggestFromPage(provider, url.data, choices, { fields: fields.data, evidence: supplied.data });
+    return { ok: true, draft, source, strength };
   } catch (e) { return { ok: false, error: safeMessage(e) }; }
   finally { busy.delete(admin.userId); }
 }

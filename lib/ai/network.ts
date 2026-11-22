@@ -70,7 +70,9 @@ export function pinnedLookup(url: URL, pin: Address): LookupFunction {
   };
 }
 
-export type SafeResponse = { status: number; location: string | null; body: string; contentType?: string; contentEncoding?: string };
+export type SafeResponse = { status: number; location: string | null; body: string; contentType?: string; contentEncoding?: string; bytes?: Buffer; truncated?: boolean };
+export class ResponseTooLargeError extends Error {}
+export class RequestDeadlineError extends Error {}
 export type SafeRequest = (url: URL, options: {
   method: "HEAD" | "GET" | "POST";
   signal: AbortSignal;
@@ -78,6 +80,10 @@ export type SafeRequest = (url: URL, options: {
   body?: string;
   maxBytes?: number;
   pageContentOnly?: boolean;
+  /** Only for extraction, never for model/API or file responses. */
+  allowPrefix?: boolean;
+  rawBytes?: boolean;
+  acceptContent?: (contentType?: string, contentEncoding?: string) => boolean;
 }) => Promise<SafeResponse>;
 
 export function isPageText(contentType?: string, contentEncoding?: string) {
@@ -111,24 +117,33 @@ export const requestPinned: SafeRequest = async (url, options) => {
         contentEncoding: res.headers["content-encoding"],
       };
       if (!options.maxBytes || info.status < 200 || info.status >= 300 ||
-          (options.pageContentOnly && !isPageText(info.contentType, info.contentEncoding))) {
+          (options.pageContentOnly && !isPageText(info.contentType, info.contentEncoding)) ||
+          (options.acceptContent && !options.acceptContent(info.contentType, info.contentEncoding))) {
         resolve({ ...info, body: "" });
         res.destroy();
         return;
       }
       const chunks: Buffer[] = [];
       let bytes = 0;
+      function finish(truncated: boolean) {
+        const body = Buffer.concat(chunks, bytes);
+        resolve({ ...info, truncated, body: options.rawBytes ? "" : body.toString("utf8"), ...(options.rawBytes && { bytes: body }) });
+      }
       res.on("data", (chunk: Buffer) => {
-        bytes += chunk.length;
-        if (bytes > options.maxBytes!) {
-          res.destroy(new Error("Response too large"));
+        const left = options.maxBytes! - bytes;
+        if (chunk.length > left) {
+          if (!options.allowPrefix) { res.destroy(new ResponseTooLargeError()); return; }
+          if (left > 0) { chunks.push(chunk.subarray(0, left)); bytes += left; }
+          finish(true);
+          res.destroy();
           return;
         }
         chunks.push(chunk);
+        bytes += chunk.length;
       });
       res.once("error", reject);
       res.once("aborted", () => reject(new Error("Response aborted")));
-      res.once("end", () => resolve({ ...info, body: Buffer.concat(chunks).toString("utf8") }));
+      res.once("end", () => finish(info.status === 206));
     });
     req.once("error", reject);
     req.end(options.body);
@@ -142,8 +157,8 @@ export async function withinDeadline<T>(ms: number, task: (signal: AbortSignal) 
   try {
     return await Promise.race([task(controller.signal), new Promise<never>((_, reject) => {
       timer = setTimeout(() => {
+        reject(new RequestDeadlineError("Request timeout"));
         controller.abort();
-        reject(new Error("Request timeout"));
       }, ms);
     })]);
   } finally { clearTimeout(timer); }

@@ -77,7 +77,10 @@ export function BookmarkDialog({
   defaultCategoryId,
   defaultUrl,
   defaultTitle,
+  defaultDescription,
+  defaultSourceText,
   autoOpen = false,
+  autoDetect = true,
   onSaved,
 }: {
   categories: CategoryOption[];
@@ -88,13 +91,20 @@ export function BookmarkDialog({
   /** 书签脚本带过来的地址，打开就填好 */
   defaultUrl?: string;
   defaultTitle?: string;
+  defaultDescription?: string;
+  defaultSourceText?: string;
   /** 书签脚本落地页用：进页面直接弹窗 */
   autoOpen?: boolean;
+  autoDetect?: boolean;
   /** 保存成功后回调（落地页拿它显示「已保存」） */
   onSaved?: (id?: string) => void;
 }) {
   const isEdit = Boolean(bookmark);
   const aiConsentId = React.useId();
+  const sourceId = React.useId();
+  const hasBrowserEvidence = Boolean(defaultDescription || defaultSourceText || (!autoDetect && defaultTitle));
+  const [useProvided, setUseProvided] = React.useState(hasBrowserEvidence);
+  const [sourceText, setSourceText] = React.useState(defaultSourceText ?? "");
   const [open, setOpen] = React.useState(autoOpen);
   const [state, setState] = React.useState<ActionResult | null>(null);
   /**
@@ -125,6 +135,8 @@ export function BookmarkDialog({
     setDetectMsg(null);
     setAiConsent(false);
     setAiMessage(undefined);
+    setUseProvided(hasBrowserEvidence);
+    setSourceText(defaultSourceText ?? "");
     detectedRef.current = "";
     formRef.current?.reset();
   };
@@ -136,10 +148,11 @@ export function BookmarkDialog({
   const detect = React.useCallback(async (force: boolean) => {
     const raw = urlRef.current?.value?.trim() ?? "";
     if (!raw || aiRun.current || detectingRef.current) return;
-    if (!force && detectedRef.current === raw) return;
+    if (!force && (!autoDetect || hasBrowserEvidence || detectedRef.current === raw)) return;
 
     detectingRef.current = true;
     setDetecting(true);
+    setAiConsent(false);
     setDetectMsg(null);
     try {
       const m = await previewMetadata(raw);
@@ -174,7 +187,7 @@ export function BookmarkDialog({
       detectingRef.current = false;
       setDetecting(false);
     }
-  }, []);
+  }, [autoDetect, hasBrowserEvidence, setAiConsent]);
 
   /*
    * 书签脚本落地页：地址是 URL 带过来的，进页面就该把简介和图标补上，
@@ -197,12 +210,21 @@ export function BookmarkDialog({
     const category = form.elements.namedItem("categoryId") as HTMLSelectElement | null;
     const visibility = form.elements.namedItem("visibility") as HTMLSelectElement | null;
     const before = { title: titleRef.current?.value, description: descRef.current?.value, tags: tags?.value, category: category?.value, visibility: visibility?.value };
+    const evidence = useProvided ? {
+      title: before.title?.trim().slice(0, 300),
+      description: before.description?.trim().slice(0, 500),
+      text: sourceText.trim().slice(0, 8000),
+    } : undefined;
+    if (evidence && !evidence.title && !evidence.description && !evidence.text) {
+      setAiMessage({ text: "请先填写标题、描述或粘贴正文节选。", error: true });
+      return;
+    }
     aiRun.current = true;
     setAiPending(mode);
     setAiConsent(false);
     setAiMessage(undefined);
     try {
-      const result = await previewAiQuickAdd(url, true, mode);
+      const result = await previewAiQuickAdd(url, true, mode, evidence);
       if (!result.ok) { setAiMessage({ text: result.error, error: true }); return; }
       if (urlRef.current?.value.trim() !== url || formRef.current !== form) return;
       const draft = result.draft;
@@ -236,7 +258,9 @@ export function BookmarkDialog({
         tags: "已追加推荐标签，可编辑后再保存。",
         all: "AI 草稿已填入表单。可编辑标题、摘要、标签和分类，点击保存后才会生效。",
       };
-      setAiMessage({ text: changed ? success[mode] : "没有可填入的新建议，可继续手动填写。" });
+      const source = result.source === "provided" ? "你提供的" : "网页";
+      const evidenceLabel = result.strength === "body" ? "正文节选" : result.strength === "metadata" ? "简介" : "标题（未生成正文摘要）";
+      setAiMessage({ text: `${changed ? success[mode] : "没有可填入的新建议，可继续手动填写。"} 依据：${source}${evidenceLabel}。` });
     } catch { setAiMessage({ text: "AI 预览失败，请稍后重试或手动填写。", error: true }); }
     finally { aiRun.current = false; setAiPending(null); }
   }
@@ -351,12 +375,22 @@ export function BookmarkDialog({
             ) : null}
           </div>
 
-          <details className="rounded-lg border bg-muted/20 px-3 py-2.5">
+          <details open={hasBrowserEvidence || undefined} className="rounded-lg border bg-muted/20 px-3 py-2.5">
             <summary className="cursor-pointer text-sm font-medium text-primary">{isEdit ? "AI 辅助编辑" : "AI 智能收藏"}</summary>
             <div className="mt-3 space-y-2.5">
+              <Label htmlFor={sourceId}>AI 取材方式</Label>
+              <select id={sourceId} className={SELECT_CLASS} value={useProvided ? "provided" : "page"} disabled={Boolean(aiPending) || pending} onChange={(event) => { setUseProvided(event.target.value === "provided"); setAiConsent(false); setAiMessage(undefined); }}>
+                <option value="page">读取公开网页（失败后可切换方式）</option>
+                <option value="provided">使用本表单的标题、简介或正文节选</option>
+              </select>
+              {useProvided && <div className="space-y-2">
+                <Label htmlFor={`${sourceId}-excerpt`}>正文节选（可选）</Label>
+                <textarea id={`${sourceId}-excerpt`} value={sourceText} maxLength={8000} rows={3} className="w-full rounded-md border border-input bg-background p-2 text-sm" readOnly={Boolean(aiPending)} placeholder="粘贴一小段你有权分享的网页文字" onChange={(event) => { setSourceText(event.target.value); setAiConsent(false); }} />
+                <p className="text-xs text-muted-foreground">请先核对表单中的标题、简介和节选，移除敏感信息。节选只供此次 AI 生成，不会作为书签字段保存。</p>
+              </div>}
               <label htmlFor={aiConsentId} className="flex items-start gap-2 text-xs leading-relaxed text-muted-foreground">
-                <input id={aiConsentId} className="mt-0.5 accent-primary" type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} disabled={Boolean(aiPending) || pending} />
-                <span>允许服务器读取当前网址，并向配置的 AI 供应商发送网页标题、域名和正文节选；分类或完整草稿还会发送候选分类。AI 只更新当前表单草稿，不会自动保存。</span>
+                <input id={aiConsentId} className="mt-0.5 accent-primary" type="checkbox" checked={aiConsent} onChange={(event) => setAiConsent(event.target.checked)} disabled={detecting || Boolean(aiPending) || pending} />
+                <span>{useProvided ? "允许向配置的 AI 供应商发送当前标题、简介、正文节选与网址域名（不读取网页）" : "允许服务器读取当前网址，并向配置的 AI 供应商发送可读取的标题、域名、简介或正文节选"}；分类或完整草稿还会发送候选分类。AI 只更新当前表单草稿，不会自动保存。</span>
               </label>
               <div className="flex flex-wrap gap-2" aria-label="AI 草稿操作">
                 {AI_DRAFT_ACTIONS.map(({ mode, label, icon: Icon }) => (
@@ -369,7 +403,7 @@ export function BookmarkDialog({
                 ))}
               </div>
               {!categories.length && <p className="text-xs text-muted-foreground">创建分类后即可使用 AI 智能分类。</p>}
-              {aiPending && <p role="status" className="text-xs text-muted-foreground">正在读取网页并生成建议…</p>}
+              {aiPending && <p role="status" className="text-xs text-muted-foreground">{useProvided ? "正在根据你提供的内容生成建议…" : "正在读取网页并生成建议…"}</p>}
               {aiMessage && <p role={aiMessage.error ? "alert" : "status"} className={`text-xs ${aiMessage.error ? "text-destructive" : "text-muted-foreground"}`}>{aiMessage.text}</p>}
             </div>
           </details>
@@ -407,6 +441,7 @@ export function BookmarkDialog({
                 id="title"
                 name="title"
                 ref={titleRef}
+                onChange={() => { if (useProvided) setAiConsent(false); }}
                 defaultValue={bookmark?.title ?? defaultTitle ?? ""}
                 placeholder="留空则自动识别，再不行用域名"
               />
@@ -455,7 +490,8 @@ export function BookmarkDialog({
               id="description"
               name="description"
               ref={descRef}
-              defaultValue={bookmark?.description ?? ""}
+              onChange={() => { if (useProvided) setAiConsent(false); }}
+              defaultValue={bookmark?.description ?? defaultDescription ?? ""}
               placeholder="留空则自动识别，可选"
             />
           </div>

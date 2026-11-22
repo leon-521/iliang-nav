@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { assertPublicHost } from "@/lib/net/guard";
+import { fetchMetadataResource } from "./transport";
 
 /**
  * 图标本地化。
@@ -48,8 +48,6 @@ const TIMEOUT_MS = 6000;
 /** 统一压到这个尺寸，够 2x 屏用，又不至于让每条书签挂一张大图 */
 const TARGET_PX = 64;
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
 
 /** 已经是本地路径（/icons/xxx）就不用再处理 */
 export function isLocalIcon(url: string | null | undefined): boolean {
@@ -126,16 +124,11 @@ export async function localizeIcon(
   }
 
   try {
-    await assertPublicHost(parsed.hostname);
-
-    const res = await fetch(remoteUrl, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { "user-agent": UA, accept: "image/*" },
+    const { response } = await fetchMetadataResource(parsed.href, {
+      timeoutMs: TIMEOUT_MS, maxBytes: MAX_BYTES, accept: "image/*",
     });
-    if (!res.ok) return null;
-
-    const buf = Buffer.from(await res.arrayBuffer());
+    if (response.status !== 200 || !response.bytes) return null;
+    const buf = response.bytes;
     if (buf.length === 0 || buf.length > MAX_BYTES) return null;
 
     const kind = sniff(buf);

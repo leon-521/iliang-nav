@@ -1,15 +1,16 @@
 import * as cheerio from "cheerio";
 import { normalizeUrl } from "@/lib/import/url";
-import { assertPublicHost } from "@/lib/net/guard";
+import { BlockedHostError, DnsError } from "@/lib/net/guard";
+import { pinAddress, RequestDeadlineError, ResponseTooLargeError, safeUrl, withinDeadline } from "../ai/network";
+import { decodePageBytes, extractHtmlFields, looksLikeAccessChallenge } from "./page-fields";
+import { fetchMetadataResource, identityEncoding, MetadataRedirectError } from "./transport";
 
 /**
  * 抓取网页元信息（标题 / 描述 / 图标）。
  *
  * 三个必须守住的点：
  *  1. **SSRF**：这个函数会让服务器去请求任意 URL。虽然只有管理员能触发，
- *     但服务端跑在 VPS 上，管理服务与应用自身都可能监听在本机，
- *     不拦的话「添加书签」就成了内网探测工具。所以域名先解析成 IP，
- *     再逐个判断是否落在私有段。第三方图标服务同样要过这道关。
+ *     也必须阻止访问内网，并将连接固定到已验证的地址。图标与网页都过这道关。
  *  2. **体积**：不读完整个 body。只读前 512KB 就够拿到 <head>，
  *     遇到几百 MB 的文件也不会把内存吃爆。
  *  3. **字符集**：中文站点大量是 GBK，按 UTF-8 硬解会得到乱码标题。
@@ -22,7 +23,7 @@ import { assertPublicHost } from "@/lib/net/guard";
 
 const MAX_BYTES = 512 * 1024;
 const TIMEOUT_MS = 8000;
-const MAX_REDIRECTS = 3;
+const MAX_ICON_BYTES = 512 * 1024;
 
 /** 图标探测超时。实测 36kr 的 favicon.ico 只要 879B 却要 3~7s，不能设太短 */
 const ICON_TIMEOUT_MS = 6000;
@@ -34,9 +35,6 @@ const MIN_ICON_BYTES = 200;
 /** 低于 96px 视为「有但很糊」，排在后面 */
 const MIN_SHARP_PX = 96;
 
-const UA =
-  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
-
 /** 图标请求的 Accept。不带 avif：cal.com 的 apple-touch-icon 返回 avif，校验会误判 */
 const ICON_ACCEPT = "image/png,image/x-icon,image/svg+xml,image/webp,image/*;q=0.8";
 
@@ -47,93 +45,13 @@ export type PageMetadata = {
   finalUrl: string;
 };
 
-export class MetadataError extends Error {}
-
-/** 把共享防护模块的错误统一成 MetadataError，前端只处理一种错误 */
-async function guardHost(hostname: string): Promise<void> {
-  try {
-    await assertPublicHost(hostname);
-  } catch (e) {
-    throw new MetadataError(e instanceof Error ? e.message : "不允许访问内网地址");
-  }
+export class MetadataError extends Error {
+  constructor(message: string, readonly blocked = false) { super(message); }
 }
 
-/** 从 Content-Type 或 HTML 头部猜字符集 */
-function sniffCharset(contentType: string | null, head: Buffer): string {
-  const fromHeader = contentType?.match(/charset=["']?([\w-]+)/i)?.[1];
-  if (fromHeader) return fromHeader;
-
-  // <meta charset="gbk"> / <meta http-equiv=... content="text/html; charset=gbk">
-  const ascii = head.subarray(0, 4096).toString("latin1");
-  const meta =
-    ascii.match(/<meta[^>]+charset=["']?\s*([\w-]+)/i)?.[1] ??
-    ascii.match(/content=["'][^"']*charset=\s*([\w-]+)/i)?.[1];
-  if (meta) return meta;
-
-  return "utf-8";
-}
-
-function decode(buffer: Buffer, charset: string): string {
-  try {
-    return new TextDecoder(charset).decode(buffer);
-  } catch {
-    return new TextDecoder("utf-8").decode(buffer);
-  }
-}
-
-/** 手动跟随重定向，每一跳都重新做内网检查 */
-async function safeFetch(startUrl: string): Promise<{
-  res: Response;
-  finalUrl: string;
-  body: Buffer;
-}> {
-  let current = startUrl;
-
-  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const u = new URL(current);
-    await guardHost(u.hostname);
-
-    const res = await fetch(current, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: {
-        "user-agent": UA,
-        accept: "text/html,application/xhtml+xml",
-        "accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-      },
-    });
-
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      if (!loc) throw new MetadataError("重定向缺少目标地址");
-      current = new URL(loc, current).toString();
-      continue;
-    }
-
-    const type = res.headers.get("content-type") ?? "";
-    if (type && !/text\/html|application\/xhtml/i.test(type)) {
-      throw new MetadataError(`不是网页（${type.split(";")[0]}）`);
-    }
-
-    // 只读前 MAX_BYTES
-    const reader = res.body?.getReader();
-    const chunks: Buffer[] = [];
-    let size = 0;
-    if (reader) {
-      while (size < MAX_BYTES) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        chunks.push(Buffer.from(value));
-        size += value.byteLength;
-      }
-      await reader.cancel().catch(() => {});
-    }
-    const body = Buffer.concat(chunks).subarray(0, MAX_BYTES);
-
-    return { res, finalUrl: current, body };
-  }
-
-  throw new MetadataError("重定向次数过多");
+function htmlContent(type?: string) {
+  const mime = type?.split(";")[0]?.trim().toLowerCase();
+  return mime === "text/html" || mime === "application/xhtml+xml";
 }
 
 function absolutize(href: string, base: string): string | null {
@@ -216,21 +134,12 @@ async function isRealImage(
   opts: { minBytes?: number; timeoutMs?: number } = {},
 ): Promise<boolean> {
   try {
-    const u = new URL(url);
-    await guardHost(u.hostname);
-
-    const res = await fetch(url, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(opts.timeoutMs ?? ICON_TIMEOUT_MS),
-      headers: { "user-agent": UA, accept: ICON_ACCEPT },
+    const { response } = await fetchMetadataResource(url, {
+      timeoutMs: opts.timeoutMs ?? ICON_TIMEOUT_MS, maxBytes: MAX_ICON_BYTES, accept: ICON_ACCEPT,
+      acceptContent: (type) => Boolean(type?.toLowerCase().startsWith("image/")),
     });
-    // google-s2 / ddg 未命中都是 404，这一关就挡住了
-    if (!res.ok) return false;
-
-    const ct = (res.headers.get("content-type") ?? "").toLowerCase();
-    if (!ct.startsWith("image/")) return false;
-
-    const buf = Buffer.from(await res.arrayBuffer());
+    if (response.status !== 200 || !response.bytes) return false;
+    const buf = response.bytes;
     if (buf.length < (opts.minBytes ?? MIN_ICON_BYTES)) return false;
 
     const kind = sniffImage(buf);
@@ -274,17 +183,11 @@ async function fetchManifestIcons(
   manifestUrl: string,
 ): Promise<Array<{ url: string; px: number }>> {
   try {
-    const u = new URL(manifestUrl);
-    await guardHost(u.hostname);
-
-    const res = await fetch(manifestUrl, {
-      redirect: "follow",
-      signal: AbortSignal.timeout(4000),
-      headers: { "user-agent": UA, accept: "application/manifest+json,application/json,*/*" },
+    const { response, finalUrl } = await fetchMetadataResource(manifestUrl, {
+      timeoutMs: 4000, maxBytes: 128 * 1024, accept: "application/manifest+json,application/json",
     });
-    if (!res.ok) return [];
-
-    const text = await res.text();
+    if (response.status !== 200 || !response.bytes) return [];
+    const text = response.bytes.toString("utf8");
     const json = JSON.parse(text) as {
       icons?: Array<{ src?: string; sizes?: string; purpose?: string }>;
     };
@@ -300,7 +203,7 @@ async function fetchManifestIcons(
       const px = parseSizes(icon.sizes) ?? 0;
       if (px < MIN_SHARP_PX) continue;
 
-      const abs = absolutize(src, manifestUrl);
+      const abs = absolutize(src, finalUrl);
       if (abs) out.push({ url: abs, px });
     }
     return out;
@@ -444,7 +347,9 @@ export async function fetchIconFallback(rawUrl: string): Promise<string | null> 
   try {
     const normalized = normalizeUrl(rawUrl);
     if (!normalized) return null;
-    return await thirdPartyIcon(new URL(normalized).hostname);
+    const source = safeUrl(normalized);
+    await withinDeadline(2000, (signal) => pinAddress(source, undefined, signal));
+    return await thirdPartyIcon(source.hostname);
   } catch {
     return null;
   }
@@ -462,36 +367,6 @@ function clean(text: string): string {
 function clip(text: string, max: number): string {
   const t = clean(text);
   return t.length > max ? `${t.slice(0, max)}…` : t;
-}
-
-/** 从 JSON-LD 里找 description（实测零增量，但成本低，兜结构化数据站） */
-function jsonLdDescription($: cheerio.CheerioAPI): string | null {
-  let found: string | null = null;
-
-  const walk = (node: unknown, depth: number) => {
-    if (found || depth > 6 || node === null || typeof node !== "object") return;
-    if (Array.isArray(node)) {
-      for (const item of node) walk(item, depth + 1);
-      return;
-    }
-    const obj = node as Record<string, unknown>;
-    if (typeof obj.description === "string" && obj.description.trim().length > 20) {
-      found = obj.description;
-      return;
-    }
-    for (const value of Object.values(obj)) walk(value, depth + 1);
-  };
-
-  $('script[type="application/ld+json"]').each((_, el) => {
-    if (found) return;
-    try {
-      walk(JSON.parse($(el).text()), 0);
-    } catch {
-      // 坏的 JSON-LD 直接忽略
-    }
-  });
-
-  return found;
 }
 
 /**
@@ -596,37 +471,28 @@ export async function fetchPageMetadata(rawUrl: string): Promise<PageMetadata> {
   const normalized = normalizeUrl(rawUrl);
   if (!normalized) throw new MetadataError("不是合法的 http/https 地址");
 
-  const { res, finalUrl, body } = await safeFetch(normalized);
-  if (!res.ok) throw new MetadataError(`目标站点返回 ${res.status}`);
-
-  const html = decode(body, sniffCharset(res.headers.get("content-type"), body));
-  const $ = cheerio.load(html);
-
-  const pick = (...xs: (string | undefined)[]) =>
-    xs.map((x) => x?.replace(/\s+/g, " ").trim()).find((x) => x && x.length > 0) ?? null;
-
-  const title = pick(
-    $('meta[property="og:title"]').attr("content"),
-    $('meta[name="twitter:title"]').attr("content"),
-    $("title").first().text(),
-    $("h1").first().text(),
-  );
-
-  /*
-   * 简介兜底：og → meta description → twitter → JSON-LD → 正文首段。
-   * twitter 和 JSON-LD 实测零增量，但都很便宜，留着兜住以后的结构化数据站。
-   */
-  const description = pick(
-    $('meta[property="og:description"]').attr("content"),
-    $('meta[name="description"]').attr("content"),
-    $('meta[name="twitter:description"]').attr("content"),
-    jsonLdDescription($) ?? undefined,
-  );
-
-  let finalDescription = description;
-  if (!finalDescription) {
-    finalDescription = bodyLead(html);
+  let page;
+  try {
+    page = await fetchMetadataResource(normalized, {
+      timeoutMs: TIMEOUT_MS, maxBytes: MAX_BYTES, accept: "text/html,application/xhtml+xml", acceptContent: htmlContent, allowPrefix: true,
+    });
+  } catch (error) {
+    if (error instanceof BlockedHostError) throw new MetadataError("网页地址受限，未继续识别。", true);
+    if (error instanceof MetadataRedirectError) throw new MetadataError(error.message, true);
+    if (error instanceof DnsError) throw new MetadataError("无法解析网页域名。", true);
+    if (error instanceof RequestDeadlineError) throw new MetadataError("读取网页超时。");
+    if (error instanceof ResponseTooLargeError) throw new MetadataError("网页响应过大。");
+    throw new MetadataError("无法连接网页。");
   }
+  const { response, finalUrl } = page;
+  if ([401, 403, 429].includes(response.status)) throw new MetadataError(`站点拒绝读取网页（HTTP ${response.status}）。`);
+  if (response.status < 200 || response.status >= 300) throw new MetadataError(`目标站点返回 HTTP ${response.status}。`);
+  if (!response.bytes || !identityEncoding(response.contentEncoding) || !htmlContent(response.contentType)) throw new MetadataError("网页返回了不支持的格式或压缩编码。");
+  const html = decodePageBytes(response.bytes, response.contentType);
+  const $ = cheerio.load(html);
+  if (looksLikeAccessChallenge($)) throw new MetadataError("站点返回访问验证页面。");
+  const { title, description } = extractHtmlFields($, response.truncated);
+  const finalDescription = description || (!response.truncated ? bodyLead(html) : null);
 
   const cands = await collectIconCandidates($, finalUrl);
   let iconUrl = await firstRealIcon(cands);

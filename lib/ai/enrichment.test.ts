@@ -67,7 +67,7 @@ test("generates a grounded draft in one inference without sending URL query or a
     return { status: 200, location: null, body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) } }] }) };
   };
   const run = () => suggestFromPage(provider, link, [category], { fields: "all", pageRequest: async () => page(), providerRequest: models });
-  assert.deepEqual(await run(), { ...response, tags: ["无障碍", "a11y"] });
+  assert.deepEqual(await run(), { ...response, source: "page", strength: "body", tags: ["无障碍", "a11y"] });
   assert.equal(calls, 1);
   response.categoryId = "00000000-0000-4000-8000-000000000000";
   await assert.rejects(run(), /没有给出有效|未给出有效/);
@@ -90,10 +90,57 @@ test("individual draft modes only return requested fields and send category data
         return { status: 200, location: null, body: JSON.stringify({ choices: [{ message: { content: JSON.stringify(response) } }] }) };
       },
     });
-    assert.deepEqual(result, mode === "details" ? { title: mock.title, description: mock.description } : mode === "tags" ? { tags: mock.tags } : { categoryId: mock.categoryId });
+    const { source, strength, ...draft } = result;
+    assert.equal(source, "page");
+    assert.equal(strength, "body");
+    assert.deepEqual(draft, mode === "details" ? { title: mock.title, description: mock.description } : mode === "tags" ? { tags: mock.tags } : { categoryId: mock.categoryId });
   }
 });
 
 test("new tags are additive, normalized and bounded by the bookmark's remaining capacity", () => {
   assert.deepEqual(mergeSuggestedTags(["AI", ...Array.from({ length: 10 }, (_, index) => `tag ${index}`)], ["ＡＩ", "杂项、并列", "新标签", "其余"]), ["新标签"]);
+});
+
+
+test("large HTML prefix and metadata-only pages can ground suggestions", async () => {
+  const prefix = '<title>Example</title><meta name="twitter:description" content="A guide to keyboard shortcuts."><body><p>truncated fragment not considered full page evidence';
+  const data = await readPageExcerpt(link, async (_url, req) => {
+    assert.equal(req.allowPrefix, true);
+    assert.equal(req.maxBytes, 768 * 1024);
+    return { ...page(prefix), truncated: true };
+  });
+  assert.equal(data.strength, "metadata");
+  assert.equal(data.text, "");
+  assert.equal(data.description, "A guide to keyboard shortcuts.");
+  assert.equal((await readPageExcerpt(link, async () => page('<title>Homepage</title><meta name="description" content="Project docs"><div id="app"></div>'))).strength, "metadata");
+});
+
+test("title-only evidence cannot produce a summary even if model returns one", async () => {
+  const result = await suggestFromPage(provider, link, [category], {
+    fields: "all",
+    pageRequest: async () => page("<title>Keyboard Guide</title><main><h1>Keyboard Guide</h1></main>"),
+    providerRequest: async (_url, req) => {
+      const messages = JSON.parse(req.body!).messages;
+      assert.equal(JSON.parse(messages[1].content).page.strength, "title");
+      return { status: 200, location: null, body: JSON.stringify({ choices: [{ message: { content: '{"title":"Wrong","description":"Invented","tags":["Keyboard"]}' } }] }) };
+    },
+  });
+  assert.equal(result.description, undefined);
+  assert.equal(result.title, "Keyboard Guide");
+  assert.deepEqual(result.tags, ["Keyboard"]);
+});
+
+test("provided evidence never starts a page request", async () => {
+  const result = await suggestFromPage(provider, link, [category], {
+    fields: "details", evidence: { title: "Manual title" },
+    pageRequest: async () => { throw new Error("source must not be fetched"); },
+    providerRequest: async () => { throw new Error("nothing to infer for title-only details"); },
+  });
+  assert.deepEqual(result, { title: "Manual title", strength: "title", source: "provided" });
+  await assert.rejects(suggestFromPage(provider, link, [], { fields: "all", evidence: { text: "too short" } }), /至少 20 字/);
+});
+
+test("reports blocked responses and does not use challenge titles", async () => {
+  await assert.rejects(readPageExcerpt(link, async () => ({ ...page(), status: 403 })), /站点拒绝.*403/);
+  await assert.rejects(readPageExcerpt(link, async () => page("<title>Just a moment...</title><main>Please verify your access now to continue.</main>")), /访问验证页面/);
 });

@@ -72,31 +72,17 @@ export async function previewMetadata(rawUrl: string): Promise<MetadataPreview> 
       description: m.description,
       iconUrl: m.iconUrl,
       finalUrl: m.finalUrl,
+      ...(!m.description && { error: "网页未提供可用简介。可在 AI 智能收藏中提供页面内容。" }),
     };
   } catch (e) {
-    /*
-     * 页面抓不到（403 / 反爬 / 超时）时，退一步只补图标。
-     * 这类站点的 HTML 一个字都不给，但第三方图标服务基本都能拿到，
-     * 比让用户自己去找图标地址强得多。
-     */
-    const iconUrl = await fetchIconFallback(trimmed);
-    if (iconUrl) {
-      return {
-        ok: true,
-        title: null,
-        description: null,
-        iconUrl,
-        finalUrl: trimmed,
-        error: "站点拒绝抓取，只补到了图标",
-      };
+    const msg = e instanceof MetadataError ? e.message : "无法读取网页信息。";
+    if (!(e instanceof MetadataError && e.blocked)) {
+      const iconUrl = await fetchIconFallback(trimmed);
+      if (iconUrl) {
+        return { ok: true, title: null, description: null, iconUrl, finalUrl: trimmed,
+          error: `${msg}已找到图标，但没有可用标题或简介；可在 AI 智能收藏中提供页面内容。` };
+      }
     }
-
-    const msg =
-      e instanceof MetadataError
-        ? e.message
-        : e instanceof Error && e.name === "TimeoutError"
-          ? "请求超时"
-          : "无法识别，站点可能禁止抓取";
     return { ok: false, error: msg };
   }
 }

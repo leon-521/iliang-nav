@@ -12,6 +12,12 @@
 - Optional AI-assisted bookmark drafts, summaries, tag extraction, and category suggestions via an OpenAI-compatible text API. Suggestions are not saved automatically.
 - Optional external management through MCP with revocable bearer tokens or OAuth 2.0 Client Credentials. See the [MCP integration reference](docs/external-api.md) or open **System → API Manual** in the dashboard.
 
+## Webpage recognition and AI sources
+
+AI uses the available evidence: page text, a description, or a title. Title-only evidence can support tag and category suggestions but not a page summary. If the public page cannot be fetched, select the form content as the AI source or paste a short excerpt you are allowed to share.
+
+Replace any old bookmarklet in your bookmarks bar. Select text on a page before clicking the bookmarklet to bring the title, description, and a bounded selection into a draft for review. It does not collect cookies or the entire page. AI processing requires explicit consent, and the excerpt is not saved as a bookmark field.
+
 ## Local setup
 
 Install Node.js 24 LTS and npm. On platforms without compatible prebuilt SQLite bindings, Python and a C/C++ toolchain may be needed.

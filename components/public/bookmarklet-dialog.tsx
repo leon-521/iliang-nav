@@ -70,7 +70,7 @@ export function BookmarkletButton({ baseUrl }: { baseUrl?: string }) {
           <DialogTitle>一键收藏</DialogTitle>
           <DialogDescription>
             把下面这个按钮拖到浏览器书签栏。以后在任何网页点它，
-            当前页面的地址和标题就会带过来，选个分类就能存。
+            它会带入网址、标题、网页提供的简介和你手动选中的一小段文字，不读取 Cookie 或整页正文。请先审阅再保存；刷新收藏页会丢失草稿。已安装旧脚本的用户，请重新添加书签。
           </DialogDescription>
         </DialogHeader>
 
