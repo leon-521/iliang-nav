@@ -11,6 +11,8 @@ import { iconForCategory } from "./nav-icons";
 import { PROJECT_GITHUB_URL } from "@/lib/project-version";
 import { cn } from "@/lib/utils";
 import { openLogin } from "@/lib/public/login-bus";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { SidebarMenuSub, SidebarMenuSubItem } from "@/components/ui/sidebar";
 
 export type SidebarCategory = {
   id: string;
@@ -29,17 +31,7 @@ function pad(n: number) {
   return String(n).padStart(2, "0");
 }
 
-/**
- * 分类树。
- *
- * 原来侧栏是把整棵树摊平成一长列，子分类靠缩进表示层级 ——
- * 分类一多，一屏全是缩进的条目，既看不出哪几个属于同一个父级，
- * 也把「新建分类」「设置」这些固定项挤到了滚动区外面。
- *
- * 现在父分类右侧带一个箭头，点开才显示子分类；
- * 当前页所在的路径会自动展开，所以从首页点进二级分类时
- * 侧栏仍然是展开的，不会让人以为自己点错了。
- */
+/** 顶层默认展开，二级分类立即可见。更深层可手动展开，当前分类的祖先会自动打开。 */
 function CategoryTree({
   categories,
   pathname,
@@ -81,55 +73,55 @@ function CategoryTree({
     return set;
   }, [categories, activeSlug, byId]);
 
-  const [expanded, setExpanded] = React.useState<Set<string>>(
-    () => new Set(activeAncestors),
-  );
-
-  /*
-   * 路由变化时把新路径的上级补进展开集合。
-   * 只加不删：用户手动展开的那些不该被一次跳转全收回去。
-   */
+  const [overrides, setOverrides] = React.useState<Map<string, boolean>>(() => new Map());
   const [previousSlug, setPreviousSlug] = React.useState(activeSlug);
   if (previousSlug !== activeSlug) {
     setPreviousSlug(activeSlug);
-    setExpanded((prev) => new Set([...prev, ...activeAncestors]));
-  }
-
-  const toggle = (id: string) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+    // Reopen the newly selected path without resetting unrelated manual folds.
+    setOverrides((previous) => {
+      const next = new Map(previous);
+      for (const id of activeAncestors) next.set(id, true);
       return next;
     });
+  }
 
   const renderLevel = (parentId: string | null, depth: number): React.ReactNode =>
-    (byParent.get(parentId) ?? []).map((c) => {
-      const kids = byParent.get(c.id) ?? [];
-      const open = expanded.has(c.id);
+    (byParent.get(parentId) ?? []).map((category) => {
+      const hasChildren = byParent.has(category.id);
+      const open = overrides.get(category.id) ?? (depth === 0 || activeAncestors.has(category.id));
+      const row = (
+        <NavRow
+          href={`/c/${encodeURIComponent(category.slug)}`}
+          active={category.slug === activeSlug}
+          icon={iconForCategory(category.name)}
+          label={category.name}
+          count={category.count}
+          depth={depth}
+          onNavigate={onNavigate}
+          hasChildren={hasChildren}
+          expanded={open}
+        />
+      );
 
       return (
-        <div key={c.id}>
-          <NavRow
-            href={`/c/${encodeURIComponent(c.slug)}`}
-            active={pathname === `/c/${encodeURIComponent(c.slug)}`}
-            icon={iconForCategory(c.name)}
-            label={c.name}
-            count={c.count}
-            depth={depth}
-            onNavigate={onNavigate}
-            hasChildren={kids.length > 0}
-            expanded={open}
-            onToggle={() => toggle(c.id)}
-          />
-          {kids.length > 0 && open ? (
-            <div className="mt-0.5 space-y-0.5">{renderLevel(c.id, depth + 1)}</div>
-          ) : null}
-        </div>
+        <SidebarMenuSubItem key={category.id}>
+          {hasChildren ? (
+            <Collapsible open={open} onOpenChange={(value) => {
+              setOverrides((previous) => new Map(previous).set(category.id, value));
+            }}>
+              {row}
+              <CollapsibleContent>
+                <SidebarMenuSub className="me-0 ms-3 translate-x-0 gap-0.5 border-s border-l-0 px-0 py-0.5 ps-1.5">
+                  {renderLevel(category.id, depth + 1)}
+                </SidebarMenuSub>
+              </CollapsibleContent>
+            </Collapsible>
+          ) : row}
+        </SidebarMenuSubItem>
       );
     });
 
-  return <div className="space-y-0.5">{renderLevel(null, 0)}</div>;
+  return <ul className="space-y-0.5">{renderLevel(null, 0)}</ul>;
 }
 
 function Logo({ siteName }: { siteName: string }) {
@@ -163,7 +155,6 @@ function NavRow({
   onNavigate,
   hasChildren = false,
   expanded = false,
-  onToggle,
 }: {
   href: string;
   active: boolean;
@@ -176,7 +167,6 @@ function NavRow({
   /** 有子分类时右侧显示展开按钮 */
   hasChildren?: boolean;
   expanded?: boolean;
-  onToggle?: () => void;
 }) {
   return (
     /*
@@ -196,8 +186,7 @@ function NavRow({
         href={href}
         onClick={onNavigate}
         aria-current={active ? "page" : undefined}
-        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch rounded-lg pe-1"
-        style={{ paddingInlineStart: 12 + depth * 14 }}
+        className="flex min-w-0 flex-1 items-center gap-2.5 self-stretch rounded-lg pe-1 ps-3"
       >
         <Icon
           className={cn(
@@ -215,10 +204,7 @@ function NavRow({
       </Link>
 
       {hasChildren ? (
-        <button
-          type="button"
-          onClick={onToggle}
-          aria-expanded={expanded}
+        <CollapsibleTrigger
           aria-label={`${expanded ? "收起" : "展开"} ${label} 的子分类`}
           className="me-1 flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground/60 transition-colors hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring/40 focus-visible:outline-none"
         >
@@ -227,8 +213,9 @@ function NavRow({
               "size-3.5 transition-transform duration-200",
               expanded && "rotate-90",
             )}
+            aria-hidden
           />
-        </button>
+        </CollapsibleTrigger>
       ) : (
         <span className="pe-2.5" aria-hidden />
       )}

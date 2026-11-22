@@ -3,30 +3,17 @@ import "server-only";
 import { ArrowUpRight, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { fetchRepositoryVersion, type RepositoryVersion } from "@/lib/project-version-source";
 import { version } from "@/package.json";
-import { compareReleaseVersions, parseRepositoryVersion, PROJECT_GITHUB_URL, PROJECT_REPOSITORY } from "@/lib/project-version";
+import { compareReleaseVersions, PROJECT_GITHUB_URL, PROJECT_REPOSITORY } from "@/lib/project-version";
 
 const repository = PROJECT_REPOSITORY;
 const repositoryUrl = PROJECT_GITHUB_URL;
-type Release = { tag: string } | { error: string };
-let cached: { expires: number; result: Promise<Release> } | undefined;
+let cached: { expires: number; result: Promise<RepositoryVersion> } | undefined;
 
-function loadRelease(): Promise<Release> {
+function loadRelease(): Promise<RepositoryVersion> {
   if (cached && cached.expires > Date.now()) return cached.result;
-  const result = (async (): Promise<Release> => {
-    try {
-      const response = await fetch(`https://raw.githubusercontent.com/${repository}/main/VERSION.md`, {
-        cache: "no-store",
-        redirect: "error",
-        signal: AbortSignal.timeout(2500),
-      });
-      if (!response.ok) return { error: "GitHub 暂时无法返回仓库版本文件。" };
-      const tag = parseRepositoryVersion(await response.text());
-      return tag ? { tag } : { error: "仓库版本文件格式不正确。" };
-    } catch {
-      return { error: "暂时无法连接 GitHub，稍后可重试。" };
-    }
-  })();
+  const result = fetchRepositoryVersion();
   const entry = { expires: Date.now() + 60_000, result };
   cached = entry;
   void result.then((release) => { if ("error" in release) entry.expires = Date.now() + 15_000; });
@@ -53,6 +40,7 @@ export async function ProjectInfoCard({ pending = false }: { pending?: boolean }
           <div><dt className="text-xs text-muted-foreground">更新状态</dt><dd className="mt-1"><Badge variant={status === "update" ? "default" : "secondary"}>{pending ? "正在检查…" : labels[status]}</Badge></dd></div>
         </dl>
         {release && "error" in release && <p className="text-xs text-muted-foreground">{release.error}</p>}
+        {release && "source" in release && <p className="text-xs text-muted-foreground">版本来源：{release.source}{release.source === "jsDelivr" && "（镜像可能有缓存延迟）"}</p>}
         {tag && status === "unknown" && <p className="text-xs text-muted-foreground">版本标签无法按稳定版本格式比较。</p>}
         <a href={repositoryUrl} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1.5 rounded-sm text-sm font-medium text-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring">
           <span className="break-all">GitHub · {repository}</span><ArrowUpRight className="size-4 shrink-0" aria-hidden />

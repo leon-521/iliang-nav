@@ -10,35 +10,43 @@ import { test, expect } from "./helpers";
  * 种子数据：技术（顶层）→ 前端（二级）；工具（顶层，无子分类）
  */
 test.describe("侧栏分类折叠", () => {
-  test("点箭头展开子分类且不跳转", async ({ page, jsErrors }) => {
+  test("桌面默认展示二级分类，箭头只折叠或展开且不跳转", async ({ page, jsErrors }) => {
     await page.goto("/");
     const sidebar = page.getByRole("navigation", { name: "分类导航" }).first();
     await expect(sidebar).toBeVisible();
 
-    /* 初始：二级分类「前端」不应出现 */
-    await expect(sidebar.getByRole("link", { name: /前端/ })).toHaveCount(0);
+    const child = sidebar.getByRole("link", { name: /前端/ });
+    await expect(child).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: /技术/ })).toHaveText(/技术03/);
+    await expect(child).toHaveText(/前端01/);
+    await expect(sidebar.getByRole("link", { name: /私密分类/ })).toHaveCount(0);
 
-    const toggle = sidebar.getByRole("button", { name: "展开 技术 的子分类" });
-    await expect(toggle).toHaveAttribute("aria-expanded", "false");
-
+    const parent = sidebar.getByRole("button", { name: "收起 技术 的子分类" });
+    await expect(parent).toHaveAttribute("aria-expanded", "true");
     const urlBefore = page.url();
-    await toggle.click();
-
-    /* 展开了 */
-    await expect(
-      sidebar.getByRole("button", { name: "收起 技术 的子分类" }),
-    ).toHaveAttribute("aria-expanded", "true");
-    await expect(sidebar.getByRole("link", { name: /前端/ })).toBeVisible();
-
-    /* 而且没有跳转 —— 这是这条用例存在的理由 */
+    await parent.click();
+    await expect(child).toBeHidden();
     expect(page.url()).toBe(urlBefore);
 
-    /* 再点一次收起 */
-    await sidebar.getByRole("button", { name: "收起 技术 的子分类" }).click();
-    await expect(sidebar.getByRole("link", { name: /前端/ })).toHaveCount(0);
+    await sidebar.getByRole("button", { name: "展开 技术 的子分类" }).click();
+    await expect(child).toBeVisible();
     expect(page.url()).toBe(urlBefore);
 
     expect(jsErrors).toEqual([]);
+  });
+
+  test("手机抽屉默认展开二级，并可手动折叠", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "打开菜单" }).click();
+    const drawer = page.getByRole("dialog", { name: "分类导航" });
+    const sidebar = drawer.getByRole("navigation", { name: "分类导航" });
+    const child = sidebar.getByRole("link", { name: /前端/ });
+    await expect(child).toBeVisible();
+    await sidebar.getByRole("button", { name: "收起 技术 的子分类" }).click();
+    await expect(child).toBeHidden();
+    await expect(drawer).toBeVisible();
+    await expect(page).toHaveURL(/\/$/);
   });
 
   test("没有子分类的分类不显示箭头", async ({ page }) => {
@@ -59,7 +67,6 @@ test.describe("侧栏分类折叠", () => {
     const sidebar = page.getByRole("navigation", { name: "分类导航" }).first();
 
     /* 先拿到「前端」的真实链接，再直接访问 */
-    await sidebar.getByRole("button", { name: "展开 技术 的子分类" }).click();
     const link = sidebar.getByRole("link", { name: /前端/ });
     const href = await link.getAttribute("href");
     expect(href).toBeTruthy();

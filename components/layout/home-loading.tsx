@@ -29,7 +29,7 @@ export function HomeLoading() {
                 </div>
               </div>
               <div className="grid min-w-0 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_22%]">
-                <div className="min-w-0 space-y-8">
+                <div className="@container/bookmarks min-w-0 space-y-8">
                   <div>
                     <LoadingBlock className="mb-4 h-5 w-24" />
                     <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
@@ -44,7 +44,7 @@ export function HomeLoading() {
                   </div>
                   <div>
                     <LoadingBlock className="mb-4 h-5 w-28" />
-                    <div className="grid gap-4 sm:grid-cols-2 min-[1440px]:grid-cols-3">
+                    <div className="grid gap-4 @min-[26rem]/bookmarks:grid-cols-2 @min-[40rem]/bookmarks:grid-cols-3">
                       {[0, 1, 2].map((item) => (
                         <div key={item} className="space-y-3 rounded-xl border bg-card p-5">
                           <div className="flex items-center gap-3"><LoadingBlock className="size-9" /><LoadingBlock className="h-4 w-24" /></div>

@@ -100,7 +100,7 @@ async function HomeContent({ searchParams }: HomePageProps) {
       </section>
 
       <div className="grid min-w-0 items-start gap-8 xl:grid-cols-[minmax(0,1fr)_22%]">
-        <div className="min-w-0 space-y-8">
+        <div className="@container/bookmarks min-w-0 space-y-8">
           <HomeQuickTools items={quickTools} showIcons={settings.showIcons} isAdmin={isAdmin} categoryOptions={isAdmin ? view.categoryOptions : []}
             initialIds={isAdmin ? settings.quickToolIds : []} candidates={isAdmin ? cards.map(({ bookmark }) => bookmark) : []} />
 
@@ -128,7 +128,7 @@ async function HomeContent({ searchParams }: HomePageProps) {
               <Link href={libraryHref({ tag: "" })} className="font-medium text-indigo-ink hover:underline">清除标签筛选</Link>
             </div>}
             {visible.length ? (
-              <ul className={`grid ${listView ? "gap-2" : "items-start gap-4 sm:grid-cols-2 min-[1440px]:grid-cols-3"}`}>
+              <ul className={`grid ${listView ? "gap-2" : "items-start gap-4 @min-[26rem]/bookmarks:grid-cols-2 @min-[40rem]/bookmarks:grid-cols-3"}`}>
                 {visible.slice((page - 1) * pageSize, page * pageSize).map(({ bookmark: b, tag }, index) => {
                   const label = displayTitle(b.title, b.url);
                   const position = (page - 1) * pageSize + index;

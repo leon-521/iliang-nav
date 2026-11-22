@@ -97,7 +97,7 @@ Install Docker Engine (or Docker Desktop) with Compose v2. Run the commands from
 
 ## Version checking
 
-The admin dashboard compares its installed version with [VERSION.md](VERSION.md) on GitHub. A higher repository version displays an update notice; results are cached briefly. If the repository cannot be read, the status is unknown. No automatic upgrade is performed.
+The admin dashboard compares its installed version with [VERSION.md](VERSION.md) on GitHub. A higher repository version displays an update notice; results are cached briefly. If the repository cannot be read, the status is unknown. No automatic upgrade is performed. If GitHub cannot be reached, the dashboard tries jsDelivr; the mirror may lag behind.
 
 ## Deployment and privacy
 
