@@ -50,6 +50,21 @@ npm run dev -- --hostname 127.0.0.1
 
 在「设置 → 站点信息」填写「首页昵称」，首页按上海时区显示问候语，例如「早上好，设计师」。同一页面可配置天气地点名称和大致经纬度。留空关闭天气；启用后，服务器将配置的坐标发送给 [Open-Meteo](https://open-meteo.com/) 查询天气，不获取访客定位。使用第三方服务请遵守其使用条款。
 
+## 使用 GHCR 预构建镜像
+
+GitHub Actions 在推送 `v*` 版本标签后构建并试运行镜像，再发布到 [GHCR](https://github.com/leon-521/iliang-nav/pkgs/container/iliang-nav)。当前支持 Linux x86-64（`linux/amd64`），每次发布使用固定版本标签，不提供 `latest`。
+
+1. 下载仓库中的 `docker-compose.ghcr.yml` 和 `.env.example`。将后者复制为 `.env`，按下方说明生成 `AUTH_SECRET` 并设置 `PUBLIC_BASE_URL`。
+2. 在同一目录执行：
+
+   ```bash
+   docker compose -f docker-compose.ghcr.yml pull
+   docker compose -f docker-compose.ghcr.yml up -d --no-build
+   docker compose -f docker-compose.ghcr.yml exec nav node scripts/create-admin.mts
+   ```
+
+   最后一条仅首次需要。访问 [首页](http://localhost:3000/)。升级前备份 `./data/`，在 `.env` 设置 `ILIANG_NAV_IMAGE_TAG` 为目标发布标签，再运行 `pull` 和 `up`。如收到 `denied`，请先在 GitHub Packages 确认镜像已公开，或以有权读取该包的账号登录 GHCR。
+
 ## Docker Compose 部署
 
 需要 Docker Engine（或 Docker Desktop）及 Compose v2。以下命令在项目目录执行。

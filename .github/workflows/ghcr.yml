@@ -1,0 +1,57 @@
+name: Publish container to GHCR
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: ghcr-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate release and build image
+        env:
+          SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "$(node -p 'require("./package.json").version')" = "$version"
+          test "$(awk '$1 == "ver:" { print $2 }' VERSION.md)" = "$version"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker build --platform linux/amd64 --build-arg "GIT_REVISION=$GITHUB_SHA" \
+            --label "org.opencontainers.image.source=$SOURCE_URL" \
+            --label "org.opencontainers.image.version=$version" \
+            -t "$image:$GITHUB_REF_NAME" .
+      - name: Smoke-test the container
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME"
+          trap 'docker logs nav-smoke; docker rm -f nav-smoke' EXIT
+          docker run -d --name nav-smoke -p 127.0.0.1:3300:3000 \
+            -e AUTH_SECRET="$(openssl rand -hex 32)" -e PUBLIC_BASE_URL=http://127.0.0.1:3300 \
+            -e LINK_CHECK_ENABLED=0 -e WEBDAV_SCHEDULER_ENABLED=0 "$image"
+          curl --fail --silent --show-error --retry 15 --retry-delay 2 --retry-connrefused --max-time 5 http://127.0.0.1:3300/ >/dev/null
+          docker exec nav-smoke node -e 'require("better-sqlite3"); require("@node-rs/argon2")'
+      - name: Publish versioned image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          trap 'docker logout ghcr.io' EXIT
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          docker push "$image:$GITHUB_REF_NAME"
+          echo "Published \`$image:$GITHUB_REF_NAME\` (linux/amd64)." >> "$GITHUB_STEP_SUMMARY"

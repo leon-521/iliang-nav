@@ -50,6 +50,21 @@ Exports can contain private bookmarks. Store them securely, and use a SQLite sna
 
 Set the homepage nickname under **Settings → Site Information**. The greeting uses Shanghai time. The same panel lets you set an approximate location name and coordinates for weather; leave the location empty to disable it. When enabled, the server sends the configured coordinates to [Open-Meteo](https://open-meteo.com/) and never requests visitor geolocation. Follow the external provider's terms of use.
 
+## Deploy a prebuilt image from GHCR
+
+GitHub Actions builds and smoke-tests each pushed `v*` release tag, then publishes it to [GHCR](https://github.com/leon-521/iliang-nav/pkgs/container/iliang-nav). Images currently target Linux x86-64 (`linux/amd64`); use an explicit version tag, not `latest`.
+
+1. Download `docker-compose.ghcr.yml` and `.env.example` from the repository. Copy the template to `.env`, then generate `AUTH_SECRET` and set `PUBLIC_BASE_URL` as below.
+2. From that directory, run:
+
+   ```bash
+   docker compose -f docker-compose.ghcr.yml pull
+   docker compose -f docker-compose.ghcr.yml up -d --no-build
+   docker compose -f docker-compose.ghcr.yml exec nav node scripts/create-admin.mts
+   ```
+
+   Create the administrator only on first setup. Open the [homepage](http://localhost:3000/). Before upgrading, back up `./data/`, set `ILIANG_NAV_IMAGE_TAG` in `.env` to the desired published tag, then run `pull` and `up` again. If GHCR returns `denied`, check package visibility or sign in with an account allowed to read it.
+
 ## Docker Compose deployment
 
 Install Docker Engine (or Docker Desktop) with Compose v2. Run the commands from the project directory.
