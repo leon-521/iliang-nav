@@ -1,4 +1,4 @@
-﻿name: Publish container to GHCR
+name: Publish container to GHCR
 
 on:
   push:
@@ -54,7 +54,13 @@ jobs:
           docker run -d --name nav-smoke -p 127.0.0.1:3300:3000 \
             -e AUTH_SECRET="$(openssl rand -hex 32)" -e PUBLIC_BASE_URL=http://127.0.0.1:3300 \
             -e LINK_CHECK_ENABLED=0 -e WEBDAV_SCHEDULER_ENABLED=0 "$image"
-          curl --fail --silent --show-error --retry 15 --retry-delay 2 --retry-connrefused --max-time 5 http://127.0.0.1:3300/ >/dev/null
+          ready=false
+          for attempt in {1..30}; do
+            if curl --fail --silent --max-time 5 http://127.0.0.1:3300/ >/dev/null; then ready=true; break; fi
+            test "$(docker inspect --format '{{.State.Running}}' nav-smoke)" = true || break
+            sleep 2
+          done
+          test "$ready" = true
           docker exec nav-smoke node -e 'require("better-sqlite3"); require("@node-rs/argon2")'
       - name: Publish versioned image
         env:
