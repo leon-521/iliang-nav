@@ -1,4 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { asc } from "drizzle-orm";
+import { getSettings } from "@/lib/settings/service";
+import { tagsByBookmark } from "@/lib/bookmarks/tag-store";
+import { encodeCsv, portableIcon, type TransferFormat } from "@/lib/import/formats";
 import { db } from "@/lib/db";
 import { bookmarks, categories } from "@/lib/db/schema";
 import { serializeNetscape, type ExportBookmark } from "@/lib/import/netscape";
@@ -92,13 +95,9 @@ export function exportNetscape(opts?: { baseUrl?: string }): ExportResult {
       : null,
   }));
 
-  /* 空分类也要导出来，不然结构信息就丢了 */
-  const usedPaths = new Set(
-    items.map((i) => i.folderPath.join("\u0000")).filter(Boolean),
-  );
-  const emptyFolders = cats
-    .map((c) => buildPath(c.id, byId))
-    .filter((p) => p.length > 0 && !usedPaths.has(p.join("\u0000")));
+  // Register every category first so the HTML serializer keeps sibling order,
+  // including categories without any bookmarks.
+  const emptyFolders = cats.map((c) => buildPath(c.id, byId)).filter((path) => path.length > 0);
 
   const now = new Date();
   const html = serializeNetscape({
@@ -110,6 +109,40 @@ export function exportNetscape(opts?: { baseUrl?: string }): ExportResult {
 
   const d = now.toISOString().slice(0, 10);
   return { html, count: items.length, filename: `bookmarks-${d}.html` };
+}
+
+export function exportLibrary(format: TransferFormat): { body: string; filename: string; contentType: string } {
+  if (format === "html") {
+    const { html, filename } = exportNetscape();
+    return { body: html, filename, contentType: "text/html; charset=utf-8" };
+  }
+  const archive = db.transaction((tx) => {
+    const folders = tx.select({ id: categories.id, parentId: categories.parentId, name: categories.name,
+      sortOrder: categories.sortOrder, visibility: categories.visibility, createdAt: categories.createdAt })
+      .from(categories).orderBy(asc(categories.sortOrder), asc(categories.createdAt), asc(categories.id)).all();
+    const rows = tx.select({ id: bookmarks.id, categoryId: bookmarks.categoryId, url: bookmarks.url,
+      title: bookmarks.title, description: bookmarks.description, altUrl: bookmarks.altUrl, iconUrl: bookmarks.iconUrl,
+      iconHidden: bookmarks.iconHidden, visibility: bookmarks.visibility, sortOrder: bookmarks.sortOrder, createdAt: bookmarks.createdAt })
+      .from(bookmarks).orderBy(asc(bookmarks.sortOrder), asc(bookmarks.createdAt), asc(bookmarks.id)).all();
+    const tags = tagsByBookmark(rows.map(({ id }) => id));
+    const { siteName, siteTagline, ownerName, footerText, showIcons, quickToolIds, quickToolsManual } = getSettings();
+    return {
+      format: "iliang-nav-library", version: 1, categories: folders,
+      bookmarks: rows.map((row) => ({ ...row, iconUrl: portableIcon(row.iconUrl), tags: tags.get(row.id) ?? [] })),
+      settings: { siteName, siteTagline, ownerName, footerText, showIcons, quickToolIds, quickToolsManual },
+    };
+  });
+  const day = new Date().toISOString().slice(0, 10);
+  if (format === "json") return { body: JSON.stringify(archive, null, 2), filename: `bookmark-library-${day}.json`, contentType: "application/json; charset=utf-8" };
+  const byId = new Map(archive.categories.map((row) => [row.id, row]));
+  const rows = archive.bookmarks.map((row) => {
+    const category = row.categoryId ? byId.get(row.categoryId) : undefined;
+    // CSV intentionally flattens category metadata, so carry the effective visibility.
+    const visible = category && category.visibility !== "public" ? "private" : row.visibility ?? category?.visibility ?? "private";
+    return [row.url, row.title, row.description ?? "", JSON.stringify(buildPath(row.categoryId, byId)), JSON.stringify(row.tags),
+      row.altUrl ?? "", visible, String(row.sortOrder), String(row.createdAt), row.iconUrl ?? "", row.iconHidden ? "1" : "0"];
+  });
+  return { body: encodeCsv(rows), filename: `bookmarks-${day}.csv`, contentType: "text/csv; charset=utf-8" };
 }
 
 /** 只数一下，给设置页显示「共 N 条可导出」 */

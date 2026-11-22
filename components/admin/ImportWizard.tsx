@@ -69,12 +69,15 @@ export function ImportWizard() {
   const [state, setState] = React.useState<ImportState>(null);
   const [pending, setPending] = React.useState(false);
   const [mapFolders, setMapFolders] = React.useState(true);
+  const [applySettings, setApplySettings] = React.useState(false);
+  const [preserveVisibility, setPreserveVisibility] = React.useState(false);
   const [done, setDone] = React.useState<ImportState>(null);
   const [busy, setBusy] = React.useState(false);
   const [file, setFile] = React.useState<File | null>(null);
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [dragging, setDragging] = React.useState(false);
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const previewRequest = React.useRef(0);
 
   const preview = state?.preview;
   const step = done?.result ? 2 : preview ? 1 : 0;
@@ -82,18 +85,31 @@ export function ImportWizard() {
   const handleFile = (f: File | undefined) => {
     if (!f) return;
     setFileName(f.name);
+    setState(null);
+    setDone(null);
+    setApplySettings(false);
+    setPreserveVisibility(false);
+    setMapFolders(true);
     // 只留原始 File，不在这里解码：服务端会嗅探 UTF-8 / GBK
     setFile(f);
   };
 
   const submitPreview = async (file: File | undefined) => {
     if (!file) return;
+    const request = ++previewRequest.current;
     setPending(true);
+    setState(null);
+    setDone(null);
     const fd = new FormData();
     fd.set("file", file);
-    const res = await previewImport(null, fd);
-    setState(res);
-    setPending(false);
+    try {
+      const res = await previewImport(null, fd);
+      if (request === previewRequest.current) setState(res);
+    } catch {
+      if (request === previewRequest.current) setState({ ok: false, error: "无法预览文件，请重试" });
+    } finally {
+      if (request === previewRequest.current) setPending(false);
+    }
   };
 
   return (
@@ -104,8 +120,7 @@ export function ImportWizard() {
       <section className="rounded-xl border bg-card p-5">
         <h2 className="text-sm font-semibold">选择书签文件</h2>
         <p className="mt-1 text-xs text-muted-foreground">
-          浏览器导出：书签管理器 → 导出书签 → HTML。支持 Chrome / Edge / Firefox /
-          Safari。
+          支持 iliang nav JSON 书签库、CSV 表格，以及 Chrome / Edge / Firefox / Safari 导出的 HTML。仅合并新数据，不会覆盖已有书签。
         </p>
 
         <div
@@ -118,16 +133,16 @@ export function ImportWizard() {
             e.preventDefault();
             setDragging(false);
             const f = e.dataTransfer.files?.[0];
-            if (f) {
+            if (f && !busy) {
               void handleFile(f);
               void submitPreview(f);
             }
           }}
-          onClick={() => inputRef.current?.click()}
+          onClick={() => { if (!busy) inputRef.current?.click(); }}
           role="button"
           tabIndex={0}
           onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") inputRef.current?.click();
+            if (!busy && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); inputRef.current?.click(); }
           }}
           className={cn(
             "mt-4 flex cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition",
@@ -140,13 +155,14 @@ export function ImportWizard() {
             <FileUp className="size-5 text-muted-foreground" />
           </div>
           <p className="text-sm font-medium">
-            {fileName ?? "拖入 HTML 文件，或点击选择"}
+            {fileName ?? "拖入 HTML、JSON 或 CSV，或点击选择"}
           </p>
           <p className="text-xs text-muted-foreground">最大 10MB</p>
           <input
             ref={inputRef}
             type="file"
-            accept=".html,.htm,text/html"
+            accept=".html,.htm,.json,.csv,text/html,application/json,text/csv"
+            disabled={busy}
             className="hidden"
             onChange={(e) => {
               const f = e.target.files?.[0];
@@ -159,10 +175,9 @@ export function ImportWizard() {
         <div className="mt-3 flex items-center gap-2">
           <Button
             size="sm"
-            disabled={pending || !fileName}
+            disabled={busy || pending || !fileName}
             onClick={() => {
-              const f = inputRef.current?.files?.[0];
-              void submitPreview(f);
+              void submitPreview(file ?? undefined);
             }}
           >
             {pending ? (
@@ -212,7 +227,7 @@ export function ImportWizard() {
           {preview.newFolders.length > 0 ? (
             <div>
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">
-                将新建 {preview.newFolders.length} 个分类
+                将新建 {preview.newFolderCount} 个分类{preview.newFolderCount > preview.newFolders.length ? "（仅显示前 50 个）" : ""}
               </div>
               <div className="flex max-h-24 flex-wrap gap-1.5 overflow-y-auto rounded-lg bg-muted/50 p-2.5">
                 {preview.newFolders.map((f) => (
@@ -228,12 +243,26 @@ export function ImportWizard() {
             <Checkbox
               id="mapFolders"
               checked={mapFolders}
+              disabled={busy}
               onCheckedChange={(v) => setMapFolders(v === true)}
             />
             <Label htmlFor="mapFolders" className="text-sm font-normal">
-              按文件夹层级自动创建分类（最多 3 级）
+              按文件夹层级创建分类（不覆盖已有分类）
             </Label>
           </div>
+
+          {preview.format !== "html" && (
+            <div className="flex items-start gap-2">
+              <Checkbox id="preserveVisibility" checked={preserveVisibility} disabled={busy} onCheckedChange={(v) => setPreserveVisibility(v === true)} />
+              <Label htmlFor="preserveVisibility" className="text-sm font-normal">保留文件中的可见性（可能公开新导入的书签；默认私有）</Label>
+            </div>
+          )}
+          {preview.hasSettings && (
+            <div className="flex items-start gap-2">
+              <Checkbox id="applySettings" checked={applySettings} disabled={busy} onCheckedChange={(v) => setApplySettings(v === true)} />
+              <Label htmlFor="applySettings" className="text-sm font-normal">导入尚未配置的站点展示设置（不覆盖已有设置）</Label>
+            </div>
+          )}
 
           <div className="max-h-72 overflow-auto rounded-lg border">
             <Table>
@@ -289,16 +318,23 @@ export function ImportWizard() {
           </div>
 
           <Button
-            disabled={busy || !file || preview.willCreate === 0}
+            disabled={busy || !file || (!preview.willCreate && !(mapFolders && preview.newFolderCount) && !applySettings)}
             onClick={async () => {
               if (!file) return;
               setBusy(true);
               const fd = new FormData();
               fd.set("file", file);
               fd.set("mapFolders", String(mapFolders));
-              const r = await confirmImport(null, fd);
-              setDone(r);
-              setBusy(false);
+              fd.set("applySettings", String(applySettings));
+              fd.set("preserveVisibility", String(preserveVisibility));
+              fd.set("digest", state?.digest ?? "");
+              try {
+                const r = await confirmImport(null, fd);
+                setDone(r);
+                if (r?.ok) setState(null);
+              } catch {
+                setDone({ ok: false, error: "无法确认导入结果，请刷新后检查书签列表" });
+              } finally { setBusy(false); }
             }}
           >
             {busy ? (
@@ -307,7 +343,7 @@ export function ImportWizard() {
                 导入中…
               </>
             ) : (
-              `确认导入 ${preview.willCreate} 条`
+              preview.willCreate ? `确认导入 ${preview.willCreate} 条` : "确认导入"
             )}
           </Button>
         </section>
@@ -326,6 +362,7 @@ export function ImportWizard() {
               ["跳过重复", done.result.skipped],
               ["无效链接", done.result.invalid],
               ["新建分类", done.result.foldersCreated],
+              ["新增展示设置", done.result.settingsAdded],
             ].map(([label, value]) => (
               <div key={String(label)}>
                 <dt className="text-xs text-muted-foreground">{label}</dt>
@@ -334,7 +371,7 @@ export function ImportWizard() {
             ))}
           </dl>
           <p className="mt-3 text-xs text-muted-foreground">
-            导入的书签默认是「私有」，确认无误后到书签页批量设为公开。
+            已有书签未被覆盖。可以到书签管理页检查新增条目的可见性。
           </p>
         </section>
       ) : null}

@@ -1,3 +1,5 @@
+import { HomeWeather, WeatherLoading } from "@/components/public/home-weather";
+import { greetingFor, formatDate } from "@/lib/public/date";
 import { Suspense } from "react";
 import Link from "next/link";
 import { HomeLoading } from "@/components/layout/home-loading";
@@ -35,6 +37,7 @@ export default function PublicHomePage(props: HomePageProps) {
 
 async function HomeContent({ searchParams }: HomePageProps) {
   const [view, params] = await Promise.all([getPublicView(), searchParams]);
+  const now = new Date();
   const { settings, groups, quickTools, total, categoryCount, isAdmin } = view;
   const filter = typeof params.category === "string" ? params.category : "";
   const groupKey = (group: (typeof groups)[number]) => group.slug ?? group.id;
@@ -80,9 +83,9 @@ async function HomeContent({ searchParams }: HomePageProps) {
       <section aria-labelledby="home-title" className="mb-7 space-y-5 motion-safe:animate-fade-up">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="mb-2 text-[11px] font-semibold tracking-[0.18em] text-muted-foreground">YOUR PERSONAL INTERNET</p>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">{formatDate(now)}</p>
             <h1 id="home-title" className="text-[26px] font-semibold tracking-tight sm:text-[32px]">
-              好网站，<span className="text-indigo-ink">随手可达。</span>
+              {greetingFor(now)}{settings.ownerName.trim() && <span className="text-indigo-ink">，{settings.ownerName.trim()}</span>}
             </h1>
             <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
               {settings.siteTagline || "把值得收藏的灵感，变成每天都用得上的入口。"}
@@ -177,6 +180,7 @@ async function HomeContent({ searchParams }: HomePageProps) {
         </div>
 
         <aside aria-label="书签概览" className="grid min-w-0 gap-6 border-t pt-6 motion-safe:animate-fade-in sm:grid-cols-2 xl:grid-cols-1 xl:border-s xl:border-t-0 xl:ps-6 xl:pt-0">
+          {settings.weather && <Suspense fallback={<WeatherLoading />}><HomeWeather location={settings.weather} /></Suspense>}
           <section className="relative isolate overflow-hidden rounded-xl border bg-indigo-soft p-5 text-indigo-ink">
             <Bookmark className="pointer-events-none absolute -end-3 top-5 -z-10 size-24 -rotate-12 opacity-15" strokeWidth={0.8} aria-hidden />
             <p className="text-[10px] font-semibold tracking-[0.12em]">YOUR BOOKMARK SPACE</p>

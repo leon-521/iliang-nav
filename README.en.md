@@ -34,6 +34,22 @@ npm run dev -- --hostname 127.0.0.1
 
 Create your administrator when prompted (new passwords must contain 6–12 characters). There is no default account. Open the [homepage](http://localhost:3000/) or [administrator dashboard](http://localhost:3000/dashboard). SQLite data is stored in `data/` by default and should not be committed.
 
+## Bookmark import and export
+
+Upload a file under **Organize → Import** and review the preview. Download the desired format from **Settings → Export Bookmarks**. Imports merge into the existing library rather than replacing the database.
+
+| Format | Use |
+| --- | --- |
+| JSON | Full bookmark-library backup, including nested categories and ordering, bookmark order, tags, and visibility. Excludes accounts, credentials, SQLite runtime files, and locally cached icon files. |
+| CSV | One bookmark per row, including URL, title, description, category path, tags, alternate URL, visibility, sort order, creation date, and icon attributes. Intended for spreadsheet editing. |
+| HTML | Netscape bookmark format for bookmark-file import/export with Chrome, Edge, Firefox, and Safari. Browsers do not preserve application-specific privacy and ordering fields. |
+
+Exports can contain private bookmarks. Store them securely, and use a SQLite snapshot if you need an instance backup rather than a portable bookmark library.
+
+## Homepage greeting and weather
+
+Set the homepage nickname under **Settings → Site Information**. The greeting uses Shanghai time. The same panel lets you set an approximate location name and coordinates for weather; leave the location empty to disable it. When enabled, the server sends the configured coordinates to [Open-Meteo](https://open-meteo.com/) and never requests visitor geolocation. Follow the external provider's terms of use.
+
 ## Docker Compose deployment
 
 Install Docker Engine (or Docker Desktop) with Compose v2. Run the commands from the project directory.

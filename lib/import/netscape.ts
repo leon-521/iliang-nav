@@ -65,14 +65,16 @@ function attr(tag: string, name: string): string | undefined {
   return decodeEntities(m[2] ?? m[3] ?? m[4] ?? "");
 }
 
-const TAG_RE = /<(\/?)(dl|dt|dd|h3|a)\b([^>]*)>|<\/\s*(dl|dt|dd|h3|a)\s*>/gi;
+const TAG_RE = /<(\/?)(dl|dt|dd|h3|a)\b((?:[^>"']|"[^"]*"|'[^']*')*)>|<\/\s*(dl|dt|dd|h3|a)\s*>/gi;
 
 export function parseNetscape(html: string): ParseResult {
+  const tokens = new RegExp(TAG_RE);
   const bookmarks: ParsedBookmark[] = [];
   const folderMap = new Map<string, ParsedFolder>();
   const stack: string[] = [];
 
   let invalid = 0;
+  let anchors = 0;
   let pendingFolder: string | null = null;
   let pendingBookmark: { url: string; title: string; addDate?: number } | null = null;
   let lastBookmark: ParsedBookmark | null = null;
@@ -83,6 +85,7 @@ export function parseNetscape(html: string): ParseResult {
     if (path.length === 0) return;
     const key = path.join("\u0000");
     if (!folderMap.has(key)) {
+      if (folderMap.size >= 20_000) throw new Error("HTML 分类数量超出限制");
       folderMap.set(key, { path, name: path[path.length - 1] });
     }
   };
@@ -91,9 +94,9 @@ export function parseNetscape(html: string): ParseResult {
   const pushText = (text: string) => {
     if (!text) return;
     if (capturing === "h3" && pendingFolder !== null) {
-      pendingFolder += text;
+      pendingFolder = (pendingFolder + text).slice(0, 60);
     } else if (capturing === "a" && pendingBookmark) {
-      pendingBookmark.title += text;
+      pendingBookmark.title = (pendingBookmark.title + text).slice(0, 300);
     } else if (capturing === "dd" && lastBookmark) {
       const next = `${lastBookmark.description ?? ""}${text}`;
       lastBookmark.description = next.trim().slice(0, 500) || undefined;
@@ -101,10 +104,10 @@ export function parseNetscape(html: string): ParseResult {
   };
 
   let m: RegExpExecArray | null;
-  while ((m = TAG_RE.exec(html)) !== null) {
+  while ((m = tokens.exec(html)) !== null) {
     // 标签之间的文本
     pushText(stripTags(html.slice(cursor, m.index)));
-    cursor = TAG_RE.lastIndex;
+    cursor = tokens.lastIndex;
 
     const closing = m[1] === "/" || m[4] !== undefined;
     const tag = (m[2] ?? m[4] ?? "").toLowerCase();
@@ -115,6 +118,7 @@ export function parseNetscape(html: string): ParseResult {
         pendingFolder = "";
         capturing = "h3";
       } else if (tag === "dl") {
+        if (stack.length >= 128) throw new Error("HTML 层级过深");
         if (pendingFolder !== null && pendingFolder.trim()) {
           stack.push(pendingFolder.trim());
           recordFolder();
@@ -125,6 +129,8 @@ export function parseNetscape(html: string): ParseResult {
         pendingFolder = null;
         capturing = null;
       } else if (tag === "a") {
+        if (++anchors > 20_000) throw new Error("HTML 书签数量超出限制");
+        lastBookmark = null;
         const href = attr(attrs, "href");
         if (!href || !isUsableUrl(href)) {
           invalid++;
@@ -168,7 +174,7 @@ export function parseNetscape(html: string): ParseResult {
   }
 
   // 兜底：完全没有 DL 结构时，扫所有 <a>
-  if (bookmarks.length === 0) {
+  if (anchors === 0) {
     const re = /<a\b([^>]*)>([\s\S]*?)<\/a>/gi;
     let mm: RegExpExecArray | null;
     while ((mm = re.exec(html)) !== null) {
@@ -245,8 +251,6 @@ function esc(s: string): string {
  *   </DL><p>
  */
 export function serializeNetscape(input: ExportInput): string {
-  const at = input.exportedAt ?? new Date();
-  const stamp = Math.floor(at.getTime() / 1000);
   const siteTitle = input.title ?? "书签";
 
   /*
@@ -255,7 +259,6 @@ export function serializeNetscape(input: ExportInput): string {
    */
   const byFolder = new Map<string, ExportBookmark[]>();
   const childFolders = new Map<string, Set<string>>();
-  const allFolders = new Set<string>();
 
   const keyOf = (p: string[]) => p.join("\u0000");
 
@@ -263,7 +266,6 @@ export function serializeNetscape(input: ExportInput): string {
     for (let i = 1; i <= path.length; i++) {
       const sub = path.slice(0, i);
       const k = keyOf(sub);
-      allFolders.add(k);
       const parentKey = keyOf(sub.slice(0, i - 1));
       if (!childFolders.has(parentKey)) childFolders.set(parentKey, new Set());
       childFolders.get(parentKey)!.add(k);
@@ -316,8 +318,7 @@ export function serializeNetscape(input: ExportInput): string {
     }
 
     const children = [...(childFolders.get(folderKey) ?? [])];
-    /* 按路径排序，保证同一份数据每次导出的顺序一致，便于 diff */
-    children.sort((a, b) => a.localeCompare(b, "zh-CN"));
+    /* Keep the order supplied by the export service rather than sorting names. */
     for (const childKey of children) {
       const path = childKey.split("\u0000");
       const name = path[path.length - 1];

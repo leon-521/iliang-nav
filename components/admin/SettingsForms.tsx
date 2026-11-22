@@ -128,18 +128,28 @@ export function SettingsForm({
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="ownerName">称呼</Label>
+        <Label htmlFor="ownerName">首页昵称</Label>
         <Input
           id="ownerName"
           name="ownerName"
           defaultValue={initial.ownerName}
           maxLength={20}
-          placeholder="留空则显示「欢迎回来」"
+          placeholder="例如：设计师（留空则只显示问候语）"
         />
         <p className="text-xs text-muted-foreground">
           显示在首页问候语里，例如「早上好，设计师」。
         </p>
       </div>
+
+      <fieldset className="space-y-2 rounded-lg border p-3">
+        <legend className="px-1 text-sm font-medium">首页天气</legend>
+        <p className="text-xs text-muted-foreground">地点留空则不显示天气。请使用城市中心等大致坐标；坐标会发送给 Open-Meteo，不会请求访客定位。</p>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="space-y-1.5"><Label htmlFor="weatherName">地点名称</Label><Input id="weatherName" name="weatherName" maxLength={40} defaultValue={initial.weather?.name} placeholder="例如：上海" /></div>
+          <div className="space-y-1.5"><Label htmlFor="weatherLatitude">纬度</Label><Input id="weatherLatitude" name="weatherLatitude" type="number" min={-90} max={90} step="any" defaultValue={initial.weather?.latitude} placeholder="例如：31.23" /></div>
+          <div className="space-y-1.5"><Label htmlFor="weatherLongitude">经度</Label><Input id="weatherLongitude" name="weatherLongitude" type="number" min={-180} max={180} step="any" defaultValue={initial.weather?.longitude} placeholder="例如：121.47" /></div>
+        </div>
+      </fieldset>
 
       <Separator />
 

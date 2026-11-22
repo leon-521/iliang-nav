@@ -1,5 +1,7 @@
 "use server";
 
+import { parseWeatherLocation } from "@/lib/weather";
+
 import { revalidatePath } from "next/cache";
 import { eq, sql } from "drizzle-orm";
 import { hash, verify } from "@node-rs/argon2";
@@ -29,6 +31,10 @@ export async function saveSettings(
   const siteTagline = String(formData.get("siteTagline") ?? "").trim();
   const footerText = formData.get("footerText");
   const footer = typeof footerText === "string" ? footerText.trim() : undefined;
+  const weatherSubmitted = formData.has("weatherName");
+  const weatherName = String(formData.get("weatherName") ?? "").trim();
+  const weather = parseWeatherLocation(weatherName, String(formData.get("weatherLatitude") ?? "").trim(), String(formData.get("weatherLongitude") ?? "").trim());
+  if (weatherSubmitted && weatherName && !weather) return { error: "天气地点最多 40 字，并需填写有效纬度（-90 至 90）和经度（-180 至 180）。" };
   const ownerName = String(formData.get("ownerName") ?? "").trim();
   const showIcons = formData.get("showIcons") === "on";
   const quickToolIds = String(formData.get("quickToolIds") ?? "")
@@ -47,6 +53,11 @@ export async function saveSettings(
   setSetting("site_tagline", siteTagline);
   if (footer !== undefined) setSetting("footer_text", footer);
   setSetting("owner_name", ownerName);
+  if (weatherSubmitted) {
+    setSetting("weather_name", weather?.name ?? "");
+    setSetting("weather_latitude", weather ? String(weather.latitude) : "");
+    setSetting("weather_longitude", weather ? String(weather.longitude) : "");
+  }
   setSetting("show_icons", showIcons ? "1" : "0");
   const existing = getSettings();
   setSetting("quick_tool_ids", quickToolIds.join(",") || (existing.quickToolsManual && !existing.quickToolIds.length ? "[]" : ""));

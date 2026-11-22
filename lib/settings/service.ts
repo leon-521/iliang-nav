@@ -1,3 +1,4 @@
+import { parseWeatherLocation, type WeatherLocation } from "@/lib/weather";
 import { inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { settings } from "@/lib/db/schema";
@@ -6,6 +7,7 @@ export type SiteSettings = {
   siteName: string;
   siteTagline: string;
   footerText: string;
+  weather: WeatherLocation | null;
   /** 首页问候语里的称呼，如「设计师」「林同学」 */
   ownerName: string;
   showIcons: boolean;
@@ -26,6 +28,7 @@ const DEFAULTS: SiteSettings = {
   siteName: "iliang nav",
   siteTagline: "我的书签导航",
   footerText: "",
+  weather: null,
   ownerName: "",
   showIcons: true,
   quickToolIds: [],
@@ -39,6 +42,9 @@ const KEYS = [
   "site_name",
   "site_tagline",
   "footer_text",
+  "weather_name",
+  "weather_latitude",
+  "weather_longitude",
   "owner_name",
   "show_icons",
   "quick_tool_ids",
@@ -62,6 +68,7 @@ export function getSettings(): SiteSettings {
     siteName: map.get("site_name") ?? DEFAULTS.siteName,
     siteTagline: map.get("site_tagline") ?? DEFAULTS.siteTagline,
     footerText: map.get("footer_text") ?? DEFAULTS.footerText,
+    weather: parseWeatherLocation(map.get("weather_name") ?? "", map.get("weather_latitude") ?? "", map.get("weather_longitude") ?? ""),
     ownerName: map.get("owner_name") ?? DEFAULTS.ownerName,
     showIcons: (map.get("show_icons") ?? "1") === "1",
     quickToolIds,
