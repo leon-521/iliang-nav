@@ -1,9 +1,15 @@
-name: Publish container to GHCR
+﻿name: Publish container to GHCR
 
 on:
   push:
     tags:
       - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build (e.g. v0.1.4)
+        required: true
+        type: string
 
 permissions:
   contents: read
@@ -17,28 +23,33 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
+      - name: Validate tag syntax
+        run: '[[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]'
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: refs/tags/${{ env.RELEASE_TAG }}
       - name: Validate release and build image
         env:
           SOURCE_URL: ${{ github.server_url }}/${{ github.repository }}
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          [[ "$GITHUB_REF_NAME" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          version="${RELEASE_TAG#v}"
+          [[ "$RELEASE_TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
           test "$(node -p 'require("./package.json").version')" = "$version"
           test "$(awk '$1 == "ver:" { print $2 }' VERSION.md)" = "$version"
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker build --platform linux/amd64 --build-arg "GIT_REVISION=$GITHUB_SHA" \
+          docker build --platform linux/amd64 --build-arg "GIT_REVISION=$(git rev-parse HEAD)" \
             --label "org.opencontainers.image.source=$SOURCE_URL" \
             --label "org.opencontainers.image.version=$version" \
-            -t "$image:$GITHUB_REF_NAME" .
+            -t "$image:$RELEASE_TAG" .
       - name: Smoke-test the container
         run: |
           set -euo pipefail
-          image="ghcr.io/${GITHUB_REPOSITORY,,}:$GITHUB_REF_NAME"
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:$RELEASE_TAG"
           trap 'docker logs nav-smoke; docker rm -f nav-smoke' EXIT
           docker run -d --name nav-smoke -p 127.0.0.1:3300:3000 \
             -e AUTH_SECRET="$(openssl rand -hex 32)" -e PUBLIC_BASE_URL=http://127.0.0.1:3300 \
@@ -53,5 +64,5 @@ jobs:
           printf '%s' "$GHCR_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
           trap 'docker logout ghcr.io' EXIT
           image="ghcr.io/${GITHUB_REPOSITORY,,}"
-          docker push "$image:$GITHUB_REF_NAME"
-          echo "Published \`$image:$GITHUB_REF_NAME\` (linux/amd64)." >> "$GITHUB_STEP_SUMMARY"
+          docker push "$image:$RELEASE_TAG"
+          echo "Published \`$image:$RELEASE_TAG\` (linux/amd64)." >> "$GITHUB_STEP_SUMMARY"
