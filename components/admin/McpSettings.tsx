@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,6 +52,7 @@ export function McpSettings() {
           setStatus({text:next ? "已启用 MCP。" : "已停用 MCP。"});
         })}>{data?.enabled ? "停用 MCP" : "启用 MCP"}</Button>
       </div>
+      <Link href="/api-manual" className="inline-block text-sm font-medium text-primary hover:underline">查看 MCP API 手册</Link>
       {data?.origin ? <dl className="rounded-lg border bg-muted/30 p-3 text-sm">
         <dt className="font-medium">MCP · Streamable HTTP</dt><dd className="mb-3 break-all font-mono text-xs">{data.origin}/api/mcp</dd>
         <dt className="font-medium">OAuth 2.0 Token 端点</dt><dd className="break-all font-mono text-xs">{data.origin}/api/oauth/token</dd>

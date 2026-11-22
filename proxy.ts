@@ -8,6 +8,7 @@ const ADMIN_PATHS = [
   "/dashboard",
   "/bookmarks",
   "/ai-tools",
+  "/api-manual",
   "/categories",
   "/import",
   "/settings",

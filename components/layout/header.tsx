@@ -12,7 +12,8 @@ const LABELS: Record<string, string> = {
   dashboard: "概览",
   bookmarks: "书签",
   categories: "分类",
-  import: "导入",
+  import: "导入导出",
+  "api-manual": "API 手册",
   settings: "设置",
   "ai-tools": "AI 工具",
 };

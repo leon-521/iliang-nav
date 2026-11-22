@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, ChevronRight, FileText, Folder, House, Import, LayoutDashboard, LogIn, Search, Settings2, Sparkles } from "lucide-react";
+import { Bookmark, BookOpen, ChevronRight, FileText, Folder, House, Import, LayoutDashboard, LogIn, Search, Settings2, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const ROUTE_ICONS = {
@@ -12,6 +12,7 @@ const ROUTE_ICONS = {
   categories: Folder,
   c: Folder,
   import: Import,
+  "api-manual": BookOpen,
   search: Search,
   login: LogIn,
   settings: Settings2,

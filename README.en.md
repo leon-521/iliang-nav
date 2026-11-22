@@ -10,7 +10,7 @@
 - Homepage shortcuts and bookmarks with drag-and-drop ordering and context menus; multiple light and dark palettes.
 - Browser bookmark import and export, local SQLite snapshots, and optional scheduled WebDAV backups.
 - Optional AI-assisted bookmark drafts, summaries, tag extraction, and category suggestions via an OpenAI-compatible text API. Suggestions are not saved automatically.
-- Optional external management through MCP with revocable bearer tokens or OAuth 2.0 Client Credentials. See the [MCP integration reference](docs/external-api.md).
+- Optional external management through MCP with revocable bearer tokens or OAuth 2.0 Client Credentials. See the [MCP integration reference](docs/external-api.md) or open **System → API Manual** in the dashboard.
 
 ## Local setup
 
@@ -36,7 +36,7 @@ Create your administrator when prompted (new passwords must contain 6–12 chara
 
 ## Bookmark import and export
 
-Upload a file under **Organize → Import** and review the preview. Download the desired format from **Settings → Export Bookmarks**. Imports merge into the existing library rather than replacing the database.
+Use the **Import** and **Export** tabs under **Organize → Import / Export**. Imports merge into the existing library rather than replacing the database.
 
 | Format | Use |
 | --- | --- |

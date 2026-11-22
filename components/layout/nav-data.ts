@@ -1,5 +1,6 @@
 import {
   Bookmark,
+  BookOpen,
   FolderTree,
   LayoutDashboard,
   Settings,
@@ -33,12 +34,12 @@ export const navGroups: NavGroupData[] = [
     items: [
       { title: "书签", url: "/bookmarks", icon: Bookmark },
       { title: "分类", url: "/categories", icon: FolderTree },
-      { title: "导入", url: "/import", icon: Upload },
+      { title: "导入导出", url: "/import", icon: Upload },
       { title: "AI 工具", url: "/ai-tools", icon: Sparkles },
     ],
   },
   {
     title: "系统",
-    items: [{ title: "设置", url: "/settings", icon: Settings }],
+    items: [{ title: "设置", url: "/settings", icon: Settings }, { title: "API 手册", url: "/api-manual", icon: BookOpen }],
   },
 ];

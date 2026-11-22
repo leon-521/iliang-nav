@@ -1,4 +1,4 @@
-import { CloudUpload, DatabaseBackup, Download, KeyRound, Mail, MousePointerClick, Plug, Settings2, Sparkles } from "lucide-react";
+import { CloudUpload, DatabaseBackup, KeyRound, Mail, MousePointerClick, Plug, Settings2, Sparkles } from "lucide-react";
 import { getSettings } from "@/lib/settings/service";
 import { listBackups } from "@/lib/backup/service";
 import { getMailDisplay } from "@/lib/mail/config";
@@ -8,11 +8,10 @@ import { PasswordForm, SettingsForm } from "@/components/admin/SettingsForms";
 import { MailSettingsForm } from "@/components/admin/MailSettings";
 import { BackupPanel } from "@/components/admin/BackupPanel";
 import { BookmarkletPanel } from "@/components/admin/BookmarkletPanel";
-import { ExportPanel } from "@/components/admin/ExportPanel";
+import { redirect } from "next/navigation";
 import { AiSettings } from "@/components/admin/AiSettings";
 import { McpSettings } from "@/components/admin/McpSettings";
 import { WebDavSettings } from "@/components/admin/WebDavSettings";
-import { exportableCount } from "@/lib/export/service";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { bookmarks } from "@/lib/db/schema";
@@ -21,6 +20,7 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ tab?: string | string[] }> }) {
   const { tab } = await searchParams;
+  if (tab === "export") redirect("/import?tab=export");
   const settings = getSettings();
   const candidates = db
     .select({ id: bookmarks.id, title: bookmarks.title, url: bookmarks.url, iconUrl: bookmarks.iconUrl })
@@ -37,7 +37,6 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     { id: "backup", title: "数据备份", icon: DatabaseBackup, description: "生成快照、下载或恢复到某个备份。", content: <BackupPanel initial={listBackups()} /> },
     { id: "webdav", title: "WebDAV", icon: CloudUpload, description: "配置远程 WebDAV 与自动备份间隔。", content: <WebDavSettings /> },
     { id: "mcp", title: "MCP", icon: Plug, description: "为 AI 客户端授予独立的书签管理权限。", content: <McpSettings /> },
-    { id: "export", title: "导出书签", icon: Download, description: "下载成浏览器通用格式，随时带走你的书签。", content: <ExportPanel count={exportableCount()} /> },
     { id: "password", title: "修改密码", icon: KeyRound, description: "修改密码后，所有设备上的登录状态会失效。", content: <PasswordForm /> },
   ];
 
